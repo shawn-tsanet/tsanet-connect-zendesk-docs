@@ -39,9 +39,9 @@ before you begin.
 | --- | --- | --- |
 | TSANet Token | Text | The unique ID linking this ticket to a TSANet case |
 | TSANet Tokens (Multi) | Text | A list of IDs for tickets with multiple cases |
-| TSANet Status | Dropdown | Current status: OPEN, ACCEPTED, INFORMATION, CLOSED |
+| TSANet Status | Dropdown | Current status: OPEN, ACCEPTED, INFORMATION, REJECTED, CLOSED |
 | TSANet Partner | Text | The name of the partner company you are collaborating with |
-| TSANet Respond By | Date/time | The deadline by which you must respond |
+| TSANet Respond By | Date | The deadline by which you must respond (calendar date) |
 
 {% hint style="warning" %}
 After creating each field, note its numeric field ID from the field's URL. You

@@ -1,0 +1,208 @@
+---
+description: >-
+  Diagnose and fix common issues with the TSANet Connect integration for
+  Zendesk: the sidebar app, inbound events, SLA alerts, ZIS, and the scheduled
+  maintenance jobs. Organized by who hits the problem and what they see.
+---
+
+# Troubleshooting Guide
+
+This guide helps you resolve the most common issues with the TSANet Connect integration. It is organized by audience so you can jump straight to your situation:
+
+* [**For Agents**](#for-agents-using-the-sidebar) — you use the TSANet panel on tickets and something is not working.
+* [**For Administrators — App & Settings**](#for-administrators-app-and-settings) — install, credentials, and custom fields.
+* [**For Administrators — Inbound, SLA & Maintenance**](#for-administrators-inbound-sla-and-maintenance) — incoming requests, SLA alerts, ZIS, and the scheduled jobs.
+
+{% hint style="info" %}
+Most issues fall into one of three buckets: **credentials** (wrong or expired), **configuration** (a field ID or setting that does not match), or **the registered email domain** (the most common single cause). Check those three first.
+{% endhint %}
+
+## For Agents — Using the Sidebar
+
+### The TSANet panel is missing or shows only a "+ New" bar
+
+This is normal on tickets that have no TSANet collaboration yet — the panel collapses to a compact bar with a single **New Collaboration** button to stay out of your way. It expands automatically once a collaboration exists on the ticket.
+
+If the panel does not appear at all on any ticket:
+
+* Refresh the ticket. The app loads when the ticket view opens.
+* Confirm the app is still installed and enabled in **Admin Center → Apps and integrations → Zendesk Support apps**.
+* If it is installed but blank, the credentials may not be set — see the next item.
+
+### "Credentials not configured"
+
+The app cannot reach TSANet because the API username or password is missing or wrong in the app settings.
+
+{% hint style="warning" %}
+Only an administrator can fix this. Ask them to re-check the **TSANet API username** and **TSANet API password** in the app settings (Admin Center → Apps and integrations → Zendesk Support apps → TSANet Connect → app settings).
+{% endhint %}
+
+### New Collaboration search returns no partners
+
+* The partner may not be a TSANet member, or may be listed under a slightly different company name. Try a shorter search term.
+* A company with multiple departments returns multiple results — pick the right department.
+* If no partner ever returns, confirm with your administrator that the app is pointed at the correct **environment** (`BETA` for testing, `PRODUCTION` when live) and that credentials are valid.
+
+### A button (Accept, Reject, Request More Info, Add Note) seems to do nothing
+
+The action buttons open a dialog inside the panel. If nothing happens:
+
+* Wait a moment — the panel talks to TSANet over the network and can take a few seconds.
+* Refresh the ticket and try again.
+* If it still fails, note the exact button and case status and report it (see [Need Help](#need-help)).
+
+### "Error processing request" when you Accept a case
+
+This almost always means the **engineer email does not match your company's registered TSANet domain**.
+
+{% hint style="danger" %}
+TSANet requires the responding engineer's email to be on **your company's** registered domain (for example `you@yourcompany.com`) — never the customer's email and never a personal address. The app submits a configured company email on your behalf; if you see this error, your administrator needs to confirm the **TSANet API username** in the app settings is a valid address on your registered domain.
+{% endhint %}
+
+### The SLA countdown is missing on an open case
+
+* The countdown only applies to the **first response**. Once a case is **Accepted**, **Rejected**, or moved to **Information**, the SLA clock stops by design — a missing countdown there is expected.
+* On a case still in **Open** status, a missing countdown usually means TSANet has not set a response deadline, which depends on your group's SLA configuration in TSANet. Contact membership@tsanet.org if open cases never show a deadline.
+
+### Partner notes are not showing up in the ticket
+
+Notes posted by the partner are mirrored into the Zendesk ticket as internal comments, and the panel refreshes automatically every few minutes. If a note is missing:
+
+* Give it a few minutes, then refresh the ticket — or click **Sync Now** in the panel to pull the latest immediately.
+* Each note is mirrored only once, so you will not see duplicates; if you believe a note was sent but never arrived, report it.
+
+### The Close button is missing on a case
+
+Only the **submitting** company can close a collaboration. If you received the request (an **inbound** case), the Close button will not appear — the partner who opened it closes it when the work is done. This is expected, not a bug.
+
+## For Administrators — App & Settings
+
+### The app upload or update
+
+The ZAF app is distributed as a pre-built ZIP and installed privately — there is no Zendesk Marketplace listing. Always download the latest `tsanet-connect-vX.Y.Z.zip` from the [releases page](https://github.com/tsanetgit/Zendesk/releases) and upload it under **Admin Center → Apps and integrations → Zendesk Support apps**.
+
+{% hint style="success" %}
+Updating is the same as installing: upload the new ZIP over the existing app. Your settings (credentials, environment, field IDs) are preserved across updates.
+{% endhint %}
+
+### Domain / "engineer email" validation errors
+
+This is the single most common configuration problem.
+
+* The **TSANet API username** in the app settings must be an account on **your company's** TSANet-registered domain.
+* It must not be a customer's email and must not be a personal address.
+* If agents report "Error processing request" on Accept, this setting is almost always the cause.
+
+### Custom field issues (status not updating, deadline blank)
+
+The app reads and writes five custom ticket fields. Each must exist and its **numeric field ID** must be entered correctly in the app settings.
+
+| If you see… | Check |
+| --- | --- |
+| Status never changes on the ticket | The **TSANet Status** field ID in settings matches the actual dropdown field, and the dropdown values exist |
+| "Respond By" date never populates | The **TSANet Respond By** field is a **Date** field (not Date/time). Zendesk Date fields only accept a calendar date, and the app sets it accordingly |
+| Token-based lookups fail | The **TSANet Token** field ID in settings matches the field, and the same ID is used by the maintenance jobs (see below) |
+
+{% hint style="info" %}
+You can find a field's numeric ID in the field's URL in **Admin Center → Objects and rules → Tickets → Fields**.
+{% endhint %}
+
+## For Administrators — Inbound, SLA & Maintenance
+
+### Inbound requests are not creating or updating tickets
+
+Incoming TSANet events reach Zendesk through the **inbound webhook** you created during installation. If inbound cases never appear:
+
+* Confirm TSANet has the correct webhook **URL, username, and password** you generated during setup (these are shown only once — if they were lost, regenerate and resend them).
+* The ZAF app's background poller also pulls inbound cases for agents who have Zendesk open. Check the browser console for the `[TSANet BG]` log prefix to confirm it is running and credentials are set.
+
+### Agents miss "Information requested" events
+
+The **Information** event (a partner needs more detail before accepting) is the one most often missed because it does not change ticket status on its own.
+
+* Create a Zendesk trigger that emails the assigned agent when the `tsanet_action_required` tag is added (**Admin Center → Objects and rules → Business rules → Triggers**).
+* Because inbound volume is low, also notify whoever owns inbound intake so requests are not missed.
+
+### SLA breach emails fire repeatedly, or never fire
+
+The breach alert is a Zendesk trigger that watches for the `tsanet_sla_breached` tag.
+
+| Symptom | Fix |
+| --- | --- |
+| Trigger never fires | Confirm the `sla-monitor` maintenance job is running and that its `TSANet Token` field ID matches the field the app uses |
+| Trigger fires over and over for the same ticket | The trigger condition must use **Current tags** (`current_tags`), not **Tags**. The wrong field name causes a silent mismatch |
+| Breaches reported on accepted cases | Expected: the TSANet SLA tracks the first response only. Once a case is accepted, rejected, or moved to Information, breach detection stops |
+
+### The scheduled maintenance jobs (GitHub Actions)
+
+Two jobs keep the integration alive without anyone's browser open: **refresh-token** (renews the ZIS bearer token before it expires) and **sla-monitor** (tags tickets whose response deadline has passed).
+
+<details>
+
+<summary>The job fails to authenticate to TSANet or Zendesk</summary>
+
+Re-check the repository secrets — all of them must be present and correct:
+`TSANET_USERNAME`, `TSANET_PASSWORD`, `ZENDESK_SUBDOMAIN` (no `.zendesk.com`), `ZENDESK_EMAIL`, `ZENDESK_API_TOKEN`, `ZIS_CLIENT_ID`, and `ZENDESK_FIELD_ID_TOKEN`.
+
+</details>
+
+<details>
+
+<summary>Pushing the workflow file is rejected by GitHub</summary>
+
+The GitHub token was issued without the `workflow` scope. Run `gh auth refresh -s workflow` once, then push again.
+
+</details>
+
+<details>
+
+<summary>sla-monitor finds open cases but tags no tickets</summary>
+
+The `ZENDESK_FIELD_ID_TOKEN` secret must match the **TSANet Token** field ID the ZAF app writes to. If they differ, the job cannot find the matching ticket.
+
+</details>
+
+### The ZIS connection / token problems
+
+The ZIS bearer connection stores a TSANet token that expires every 60 minutes; the refresh job replaces it on a schedule.
+
+<details>
+
+<summary>You cannot see the integration in Admin Center</summary>
+
+ZIS custom integrations are **API-only** and do not appear in the Admin Center UI. Verify it with a direct API call:
+`GET /api/services/zis/integrations/tsanet_connect/connections`. A 404 from a standard API token is expected — ZIS management endpoints require ZIS OAuth scope.
+
+</details>
+
+<details>
+
+<summary>"Invalid client secret" (AADSTS7000215) through ZIS, but the same secret works directly</summary>
+
+The stored secret is corrupted — usually a paste artifact such as a trimmed leading character or a merged line. Re-send it verbatim with `PATCH` (not `PUT`, which returns 405) to the OAuth client endpoint.
+
+</details>
+
+### Zendesk View columns for TSANet fields are missing
+
+When you create a View to monitor active TSANet cases, the Zendesk Views API silently ignores custom-field columns. Add the TSANet columns **manually** in **Admin Center → Workspaces → Views** after the View is created. Outbound and inbound cases are tagged `tsanet_outbound` and `tsanet_inbound`, so you can also filter Views by those tags.
+
+## Quick Diagnostic Checklist
+
+When something is wrong and you are not sure where to start, work through these in order:
+
+1. **Credentials** — are the TSANet username/password in the app settings correct, and is the **environment** (`BETA`/`PRODUCTION`) right?
+2. **Domain** — is the TSANet API username on your company's registered domain?
+3. **Field IDs** — do the five custom field IDs in the app settings match the actual fields, and does the Token field ID match the maintenance job secret?
+4. **Webhook** — does TSANet have the correct inbound webhook URL, username, and password?
+5. **Maintenance jobs** — are both GitHub Actions jobs green on their last run?
+6. **Triggers** — do tag-based triggers use **Current tags**?
+
+## Need Help
+
+If you have worked through the relevant section above and the issue persists:
+
+* For credentials, environment access, or partner/membership questions, contact **membership@tsanet.org**.
+* To report a bug or request an enhancement in the app itself, open an issue at [https://github.com/tsanetgit/Zendesk/issues](https://github.com/tsanetgit/Zendesk/issues).
+
+When reporting, include: what you were doing, the exact error text or missing behavior, the case status and direction (inbound/outbound), and whether you are on `BETA` or `PRODUCTION`.

@@ -150,6 +150,13 @@ While a collaboration is active:
 * The management team can monitor progress across all collaborations and align
   the work with the organization's own case-handling process.
 
+{% hint style="info" %}
+Every TSANet ticket is tagged `tsanet_outbound` or `tsanet_inbound`. Your
+administrator can build a Zendesk View on these tags (or on the TSANet Status
+field) so the team can watch all active collaborations from one list without
+opening each ticket.
+{% endhint %}
+
 The submitting company closes the collaboration when the work is complete.
 
 ## TSANet Case Status Definitions
