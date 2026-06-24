@@ -128,16 +128,36 @@ rules &gt; Triggers.
 > 📸 **Screenshot placeholder:** The Zendesk trigger that emails the assigned
 > agent when an INFORMATION event arrives.
 
+### Forward public replies to the partner (optional)
+
+By default, partner notes flow **into** Zendesk. You can also send agent replies
+back **out** to the partner automatically: when an agent posts a **public
+reply** on a TSANet ticket, it is forwarded to the partner as a note. Internal
+comments are never forwarded.
+
+Set this up with one Zendesk webhook and one Zendesk trigger. The trigger fires
+on a public comment (on tickets tagged `tsanet_inbound` or `tsanet_outbound`)
+and sends the reply to a second ZIS inbound webhook, which posts it to the
+partner. Only replies authored by an **agent or admin** are forwarded — an end
+customer's public reply is not.
+
+{% hint style="info" %}
+With this in place, the ZAF app's **Add Note → Public** simply posts a public
+reply and lets the trigger deliver it, so the partner receives each note once.
+{% endhint %}
+
 <details>
 
 <summary>Server-side maintenance: the GitHub Actions workflow</summary>
 
-Two pieces of the integration must run on a clock, independent of any agent's
+The integration's scheduled work runs on a clock, independent of any agent's
 browser:
 
-* **Token refresh.** The ZIS Bearer connection stores a TSANet token that
-  expires every 60 minutes. A scheduled job logs in to TSANet, gets a fresh
-  token, and updates the ZIS connection.
+* **TSANet authentication.** Current setups use a ZIS **OAuth client-credentials
+  connection** (Microsoft Entra): ZIS mints and renews its own short-lived
+  tokens, so no token-refresh job is needed. (Older setups stored a TSANet token
+  in the ZIS connection and refreshed it every 60 minutes with a scheduled job —
+  that pattern is now legacy.)
 * **SLA monitoring.** A scheduled job pulls all open TSANet cases, finds any
   whose response deadline has passed, and tags the matching Zendesk ticket.
 
@@ -155,7 +175,7 @@ as a pre-built ZIP and installed privately. There is no Zendesk Marketplace
 listing.
 
 * Visit the TSANet Connect releases page to get the latest version:
-  [https://github.com/tsanetgit/Zendesk/releases](https://github.com/tsanetgit/Zendesk/releases)
+  [https://github.com/tsanetgit/Zendesk\_App/releases](https://github.com/tsanetgit/Zendesk_App/releases)
 * Download the `tsanet-connect-vX.Y.Z.zip` asset from the latest release.
 * In Admin Center &gt; Apps and integrations &gt; Zendesk Support apps, choose
   to upload a private app and select the ZIP.
@@ -213,13 +233,14 @@ then update the app settings to use them.
 
 ## Authentication Summary
 
-There are three authentication contexts in this integration.
+There are four authentication contexts in this integration.
 
 | Context | Method | Where it is stored |
 | --- | --- | --- |
 | ZIS setup (Steps 1 to 3) | Zendesk Basic Auth | Used once, not stored in the app |
 | ZAF app to Zendesk (runtime) | Inherited agent session via the ZAF SDK | Automatic, no credential needed |
 | ZAF app to TSANet API (runtime) | JWT Bearer token from login | Zendesk app settings (encrypted) |
+| ZIS to TSANet API (runtime) | OAuth client credentials (Microsoft Entra) | ZIS connection — minted and renewed automatically |
 
 ## Need Help
 

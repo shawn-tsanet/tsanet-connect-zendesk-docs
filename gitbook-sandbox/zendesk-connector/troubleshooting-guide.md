@@ -79,7 +79,7 @@ Only the **submitting** company can close a collaboration. If you received the r
 
 ### The app upload or update
 
-The ZAF app is distributed as a pre-built ZIP and installed privately — there is no Zendesk Marketplace listing. Always download the latest `tsanet-connect-vX.Y.Z.zip` from the [releases page](https://github.com/tsanetgit/Zendesk/releases) and upload it under **Admin Center → Apps and integrations → Zendesk Support apps**.
+The ZAF app is distributed as a pre-built ZIP and installed privately — there is no Zendesk Marketplace listing. Always download the latest `tsanet-connect-vX.Y.Z.zip` from the [releases page](https://github.com/tsanetgit/Zendesk_App/releases) and upload it under **Admin Center → Apps and integrations → Zendesk Support apps**.
 
 {% hint style="success" %}
 Updating is the same as installing: upload the new ZIP over the existing app. Your settings (credentials, environment, field IDs) are preserved across updates.
@@ -114,7 +114,16 @@ You can find a field's numeric ID in the field's URL in **Admin Center → Objec
 Incoming TSANet events reach Zendesk through the **inbound webhook** you created during installation. If inbound cases never appear:
 
 * Confirm TSANet has the correct webhook **URL, username, and password** you generated during setup (these are shown only once — if they were lost, regenerate and resend them).
-* The ZAF app's background poller also pulls inbound cases for agents who have Zendesk open. Check the browser console for the `[TSANet BG]` log prefix to confirm it is running and credentials are set.
+* Inbound cases are created **server-side** by the webhook push, so they appear even when no agent has Zendesk open. The ZAF app's background poller is a **fallback** that fills in if push is unavailable; it defers to push so no duplicate ticket is created. Check the browser console for the `[TSANet BG]` log prefix to confirm the fallback is running and credentials are set.
+
+### Public replies are not reaching the partner
+
+If agents post **public replies** but the partner does not receive them as notes:
+
+* Confirm the **forwarding trigger and webhook** are configured (see the Installation Guide, "Forward public replies to the partner"). Without them, public replies stay in Zendesk.
+* The trigger only forwards replies authored by an **agent or admin** — an end customer's public reply is not forwarded, by design.
+* The ticket must carry the `tsanet_inbound` or `tsanet_outbound` tag for the trigger to fire.
+* **Internal** comments are never forwarded — only public replies and **Add Note → Public** reach the partner.
 
 ### Agents miss "Information requested" events
 
@@ -135,7 +144,7 @@ The breach alert is a Zendesk trigger that watches for the `tsanet_sla_breached`
 
 ### The scheduled maintenance jobs (GitHub Actions)
 
-Two jobs keep the integration alive without anyone's browser open: **refresh-token** (renews the ZIS bearer token before it expires) and **sla-monitor** (tags tickets whose response deadline has passed).
+The scheduled **sla-monitor** job tags tickets whose response deadline has passed. (Older setups also ran a **refresh-token** job to renew a stored TSANet token; current setups use a ZIS OAuth client-credentials connection that renews its own tokens, so that job is legacy.)
 
 <details>
 
@@ -164,7 +173,7 @@ The `ZENDESK_FIELD_ID_TOKEN` secret must match the **TSANet Token** field ID the
 
 ### The ZIS connection / token problems
 
-The ZIS bearer connection stores a TSANet token that expires every 60 minutes; the refresh job replaces it on a schedule.
+Current setups use a ZIS **OAuth client-credentials connection** (Microsoft Entra) that mints and renews its own short-lived tokens — no refresh job is involved. (Older setups stored a 60-minute TSANet token in the ZIS connection and replaced it on a schedule.)
 
 <details>
 
@@ -203,6 +212,6 @@ When something is wrong and you are not sure where to start, work through these 
 If you have worked through the relevant section above and the issue persists:
 
 * For credentials, environment access, or partner/membership questions, contact **membership@tsanet.org**.
-* To report a bug or request an enhancement in the app itself, open an issue at [https://github.com/tsanetgit/Zendesk/issues](https://github.com/tsanetgit/Zendesk/issues).
+* To report a bug or request an enhancement in the app itself, open an issue at [https://github.com/tsanetgit/Zendesk\_App/issues](https://github.com/tsanetgit/Zendesk_App/issues).
 
 When reporting, include: what you were doing, the exact error text or missing behavior, the case status and direction (inbound/outbound), and whether you are on `BETA` or `PRODUCTION`.

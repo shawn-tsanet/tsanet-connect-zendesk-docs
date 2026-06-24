@@ -55,7 +55,7 @@ When expanded, the panel shows:
 * The partner engineer's name and contact details
 * A live countdown to the SLA response deadline
 * Action buttons: New Collaboration, Accept, Reject, Request More Info,
-  Respond Now, and Add Note
+  Respond Now, and Add Note (with a Public / Internal choice)
 
 The panel refreshes automatically every few minutes while any agent has Zendesk
 open, so the case detail stays current without a manual refresh.
@@ -132,14 +132,27 @@ Once a collaboration is active, both sides keep working it through notes.
 * **Respond Now** posts a response to the partner on an open request.
 * **Add Note** posts a note to the collaboration. A note has two parts: a
   **Subject** (a short summary) and optional **Details** (the longer body).
-  Fill in only the Subject if a short note is enough.
+  Fill in only the Subject if a short note is enough. When you add a note you
+  also choose who can see it:
+  * **Internal** (the default) keeps the note in Zendesk only. It is **not**
+    sent to the partner — use it for private notes to your own team.
+  * **Public** sends the note to the partner **and** shows it to the end
+    customer on the ticket.
+
+{% hint style="info" %}
+The rule is simple: **public content reaches the partner; internal notes stay
+in Zendesk.** A normal **public reply** typed in the Zendesk composer is also
+forwarded to the partner automatically — so you can answer a partner from the
+ticket itself, not only from the panel. Internal comments are never forwarded.
+{% endhint %}
 
 > 📸 **Screenshot placeholder:** The Add Note dialog showing the Subject and
-> Details fields.
+> Details fields and the Public / Internal choice.
 
 Notes posted by the partner are mirrored into the Zendesk ticket as internal
 comments, so the whole team can follow the conversation from the ticket without
-opening the panel. Each mirrored note appears only once.
+opening the panel. Each mirrored note appears only once, and your own public
+replies are not echoed back into the ticket as duplicates.
 
 ## Ongoing Collaboration
 
