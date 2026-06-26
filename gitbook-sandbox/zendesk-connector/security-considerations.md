@@ -22,10 +22,11 @@ The integration has two moving parts, plus one optional helper:
 
 {% hint style="info" %}
 **Bottom line.** No data leaves Zendesk except what is required to collaborate
-with a partner over TSANet, every connection is TLS-encrypted, and the only
-credential at meaningful risk (the TSANet API password) belongs to a dedicated
-service account scoped to your TSANet membership. The one item a reviewer should
-weigh is how that password is stored in the ZAF app today. See
+with a partner over TSANet, and every connection is TLS-encrypted. The TSANet API
+password is stored as a Zendesk **secure setting** (kept out of the app's
+front-end code and injected server-side at login), and it belongs to a dedicated
+service account scoped to your TSANet membership. ZIS connection secrets live in
+Zendesk's server-side secret store. See
 [Credential Handling](#authentication-and-credential-storage) and
 [Known Considerations and Hardening](#known-considerations-and-hardening).
 {% endhint %}
@@ -74,22 +75,22 @@ everything.
 | Connection | Method | Where the secret lives |
 | --- | --- | --- |
 | ZAF app to Zendesk | The agent's own Zendesk session, inherited via the ZAF SDK (`client.request()`) | Nothing stored. The app never holds a Zendesk credential. |
-| ZAF app to TSANet API | JWT Bearer token, obtained by logging in with the TSANet API username and password from the app settings | Username and password in the app's installation settings. The JWT is held in browser memory only (about 50 minutes) and is never written to local or session storage. |
+| ZAF app to TSANet API | JWT Bearer token, obtained at login. The password is a ZAF **secure setting**: the login request goes through the Zendesk proxy, which substitutes the password server-side, so it never appears in front-end code | Username is a normal app setting; the password is a **secure** setting, not exposed to the browser. The resulting JWT is held in browser memory only (about 50 minutes) and is never written to local or session storage. |
 | ZIS to TSANet API | OAuth 2.0 client credentials (Microsoft Entra). ZIS mints and renews its own short-lived tokens | The long-lived Entra client credential is stored **server-side** in the Zendesk ZIS connection store. There is no static token at rest. |
 | TSANet to ZIS (inbound) | HTTP Basic auth on every delivery, enforced by ZIS. TSANet additionally signs each delivery with an HMAC-SHA256 signature (`X-Hub-Signature-256`) | Per-subscription ingest credentials, held by TSANet for delivery and by ZIS for verification. |
 | ZIS to Zendesk | A basic-auth ZIS connection using a Zendesk API token | Stored **server-side** in the Zendesk ZIS connection store. |
 | GitHub Actions (optional) | Zendesk API token and TSANet API credentials | Encrypted GitHub Actions repository secrets. |
 
-{% hint style="warning" %}
-**Credential handling, stated plainly.** The TSANet API username and password are
-stored as standard Zendesk app settings and are read by the app's front-end code,
-because the app calls the TSANet API directly from the browser. They are
-therefore readable inside the app's browser context (for example, by an
-administrator inspecting the running app). Mitigating factors: the credential
-belongs to a **dedicated TSANet service account** (not a person), is scoped to
-your TSANet membership, travels only over TLS, and the resulting token is never
-persisted in the browser. The roadmap to remove even this exposure is in
-[Known Considerations and Hardening](#known-considerations-and-hardening).
+{% hint style="info" %}
+**Credential handling, stated plainly.** The TSANet API password is stored as a
+Zendesk **secure setting** (`secure: true`). Secure settings are not exposed to
+the app's front-end code; when the app logs in to TSANet, the request is made
+through the Zendesk proxy, which substitutes the password server-side, so the
+cleartext password is never present in the agent's browser. Additional factors:
+the credential belongs to a **dedicated TSANet service account** (not a person),
+is scoped to your TSANet membership, travels only over TLS, and the resulting
+token is held in memory only. This was shipped in ZAF app **v1.0.42** and
+validated end to end on Beta.
 {% endhint %}
 
 ## Transport and Network Security
@@ -159,23 +160,20 @@ persisted in the browser. The roadmap to remove even this exposure is in
 This section is candid about the current tradeoffs and the work planned to close
 them.
 
-### TSANet credential is readable in the app's browser context
+### TSANet credential storage (resolved in v1.0.42)
 
-**Current state.** The ZAF app calls the TSANet API directly from the browser, so
-the API password is a non-secure app setting (`secure: false`) and is read by
-front-end code. Anyone who can inspect the running app in the agent's browser can
-read it.
+**Resolved.** The TSANet API password is stored as a Zendesk **secure setting**
+(`secure: true`), so it is not exposed to the app's front-end code. At login the
+app calls TSANet through the Zendesk proxy (`client.request()` with
+`secure: true`), and the proxy substitutes the password server-side, so the
+cleartext never reaches the agent's browser. The token-based calls that follow
+carry only the short-lived JWT, not a secret.
 
-**Why it is acceptable today.** It is a dedicated service account scoped to your
-TSANet membership, used over TLS, with the resulting token kept in memory only.
-
-**Hardening path.** Zendesk's ZAF framework supports **secure settings**
-(`secure: true`), which keep a value out of the front-end entirely and inject it
-server-side into outbound requests. Adopting this for the TSANet password
-requires routing the app's TSANet calls through `client.request()` with
-server-side templating instead of a direct browser `fetch()`. That is an
-architectural change to the app's request path and is tracked as a hardening item
-in the `tsanetgit/Zendesk_App` repository.
+**History.** Earlier versions stored the password as a non-secure setting and
+called the TSANet API directly from the browser via `fetch()`, which made the
+password readable in the app's browser context. This was hardened in ZAF app
+**v1.0.42** (tracked as issue #49 in `tsanetgit/Zendesk_App`) and validated end to
+end on Beta.
 
 ### Inbound signature verification
 
