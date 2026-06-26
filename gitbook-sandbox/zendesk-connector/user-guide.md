@@ -51,13 +51,13 @@ The TSANet panel appears on the right side of every Zendesk ticket.
 When expanded, the panel shows:
 
 * Every active TSANet collaboration on the ticket
-* The status of each one: OPEN, ACCEPTED, INFORMATION, or CLOSED
+* The status of each one: OPEN, ACCEPTED, INFORMATION, REJECTED, or CLOSED
 * The partner engineer's name and contact details
 * A live countdown to the SLA response deadline
 * Action buttons: New Collaboration, Accept, Reject, Request More Info,
   Respond Now, and Add Note (with a Public / Internal choice)
 
-The panel refreshes automatically every few minutes while any agent has Zendesk
+The panel refreshes automatically about once a minute while any agent has Zendesk
 open, so the case detail stays current without a manual refresh.
 
 > 📸 **Screenshot placeholder:** The expanded TSANet sidebar panel on a Zendesk

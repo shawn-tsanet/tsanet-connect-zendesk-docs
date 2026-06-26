@@ -75,7 +75,7 @@ APIs &gt; Zendesk API &gt; Add API token.
 Then create the integration:
 
 ```
-POST https://{your-subdomain}.zendesk.com/api/services/zis/integrations/tsanet_connect
+POST https://{your-subdomain}.zendesk.com/api/services/zis/registry/tsanet_connect
 ```
 
 A `200 OK` response confirms the container was created. Save the full response

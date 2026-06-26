@@ -66,7 +66,7 @@ TSANet requires the responding engineer's email to be on **your company's** regi
 
 ### Partner notes are not showing up in the ticket
 
-Notes posted by the partner are mirrored into the Zendesk ticket as internal comments, and the panel refreshes automatically every few minutes. If a note is missing:
+Notes posted by the partner are mirrored into the Zendesk ticket as internal comments, and the panel refreshes automatically about once a minute. If a note is missing:
 
 * Give it a few minutes, then refresh the ticket — or click **Sync Now** in the panel to pull the latest immediately.
 * Each note is mirrored only once, so you will not see duplicates; if you believe a note was sent but never arrived, report it.
@@ -204,7 +204,7 @@ When something is wrong and you are not sure where to start, work through these 
 2. **Domain** — is the TSANet API username on your company's registered domain?
 3. **Field IDs** — do the five custom field IDs in the app settings match the actual fields, and does the Token field ID match the maintenance job secret?
 4. **Webhook** — does TSANet have the correct inbound webhook URL, username, and password?
-5. **Maintenance jobs** — are both GitHub Actions jobs green on their last run?
+5. **Maintenance job** — is the `sla-monitor` GitHub Actions job green on its last run? (Legacy setups also run a `refresh-token` job; current setups do not.)
 6. **Triggers** — do tag-based triggers use **Current tags**?
 
 ## Need Help
