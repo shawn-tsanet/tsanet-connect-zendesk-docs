@@ -107,7 +107,7 @@ gh secret set ZIS_CLIENT_ID        --body "your-zis-oauth-client-id"
 gh secret set ZENDESK_FIELD_ID_TOKEN --body "your-tsanet-token-field-id"
 ```
 
-> `ZENDESK_FIELD_ID_TOKEN` is the Zendesk custom field ID for the **TSANet Token** field — the same value you used in the ZAF app settings (e.g. `48849323029652` on the dev instance).
+> `ZENDESK_FIELD_ID_TOKEN` is the Zendesk custom field ID for the **TSANet Token** field — the same value you used in the ZAF app settings (e.g. `1234567890` on the dev instance).
 
 ---
 
