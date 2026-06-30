@@ -168,6 +168,70 @@ manually to confirm both jobs succeed. After that it runs unattended.
 
 </details>
 
+## Optional: Native Field Actions and One-Click Macros
+
+Teams that do not install the sidebar app, or that want a no-app fallback, can
+drive the inbound lifecycle from two native Zendesk fields. An agent sets a
+dropdown and the integration performs the action against TSANet. Setting it up
+has three parts.
+
+### Create the two fields
+
+In Admin Center &gt; Objects and rules &gt; Tickets &gt; Fields, create:
+
+* **TSANet Action**, a dropdown with these options (the tag values must match
+  exactly):
+  * Accept (tag `tsanet_action_accept`)
+  * Reject (tag `tsanet_action_reject`)
+  * Request Info (tag `tsanet_action_request_info`)
+  * Add Note (tag `tsanet_action_add_note`)
+* **TSANet Action Text**, a text field for the supporting text (a reject reason,
+  an information question, or a note body).
+
+Note the Field ID of each, shown in the URL when you open the field.
+
+### Install the field-action flow
+
+The ZIS flow bundle includes a field-action flow that watches the TSANet Action
+field and runs the matching action against TSANet. Substitute your two Field IDs
+into the bundle, upload it, and install the `jobspec_field_action` job spec
+(reinstall it after every bundle upload). The exact commands are in the
+technical ZIS Quick Start.
+
+### Create the optional macros
+
+Macros make the field actions one-click: instead of opening the dropdown, an
+agent applies a macro that sets the TSANet Action field. Create one macro per
+action in Admin Center &gt; Workspaces &gt; Macros (or via the API). Each macro
+sets the TSANet Action field to the matching value:
+
+| Macro | Sets TSANet Action to |
+| --- | --- |
+| TSANet: Accept | `tsanet_action_accept` |
+| TSANet: Request Info | `tsanet_action_request_info` |
+| TSANet: Reject | `tsanet_action_reject` |
+| TSANet: Send partner-only note | `tsanet_action_add_note` |
+
+The agent still types any needed text into TSANet Action Text before applying
+the macro. The **TSANet: Send partner-only note** macro is how an agent sends a
+note the partner sees but the end customer does not, without the sidebar app.
+
+Create a macro via the API by substituting your TSANet Action field ID for
+`FIELD_ID`:
+
+```bash
+curl -X POST "https://{your-subdomain}.zendesk.com/api/v2/macros.json" \
+  -u "you@example.com/token:YOUR_API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"macro":{"title":"TSANet: Send partner-only note","actions":[{"field":"custom_fields_FIELD_ID","value":"tsanet_action_add_note"}]}}'
+```
+
+{% hint style="info" %}
+Macros are per-instance Zendesk configuration and cannot be bundled with the
+integration, so each Zendesk account creates its own. The field actions work
+without macros (set the dropdown by hand); the macros are purely a one-click
+convenience.
+{% endhint %}
+
 ## Step 4 &mdash; Install the ZAF Sidebar App
 
 The ZAF sidebar app is the panel agents use on every ticket. It is distributed

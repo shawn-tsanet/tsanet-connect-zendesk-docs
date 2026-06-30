@@ -55,7 +55,7 @@ When expanded, the panel shows:
 * The partner engineer's name and contact details
 * A live countdown to the SLA response deadline
 * Action buttons: New Collaboration, Accept, Reject, Request More Info,
-  Respond Now, and Add Note (with a Public / Internal choice)
+  Respond Now, and Add Note (with an Internal / Partner only / Public choice)
 
 The panel refreshes automatically about once a minute while any agent has Zendesk
 open, so the case detail stays current without a manual refresh.
@@ -125,34 +125,83 @@ Because inbound requests are not high volume, set up a notification for the
 team that manages inbound intake so requests are not missed.
 {% endhint %}
 
+## Working a Case Without the Sidebar App (Native Fields)
+
+Some teams run the integration without the sidebar app. The inbound actions
+above (Accept, Request More Info, Reject, and Add Note) are all available
+directly from two native Zendesk fields, so an agent never has to leave the
+ticket form:
+
+* **TSANet Action** is a dropdown that triggers an action: Accept, Reject,
+  Request Info, or Add Note.
+* **TSANet Action Text** is a text field that carries the supporting text, such
+  as a reject reason, an information question, or a note body.
+
+To act on a case, type any required text into **TSANet Action Text**, set
+**TSANet Action** to the action you want, and submit the ticket. The integration
+runs the action against TSANet, records a confirmation as an internal comment,
+and clears the Action field so it is ready for the next action.
+
+| You want to | Set TSANet Action to | Put in TSANet Action Text |
+| --- | --- | --- |
+| Accept an inbound request | Accept | nothing required |
+| Ask the partner for more detail | Request Info | your question |
+| Decline the request | Reject | the reason |
+| Send a note to the partner | Add Note | the note body |
+
+{% hint style="info" %}
+**One-click macros.** Your administrator can create a Zendesk macro for each
+action (for example **TSANet: Accept** or **TSANet: Send partner-only note**) so
+an agent applies the macro instead of opening the dropdown by hand. The agent
+still types any needed text into TSANet Action Text first. See the
+[Installation Guide](installation-guide) for how to create them.
+{% endhint %}
+
+> 📸 **Screenshot placeholder:** The TSANet Action dropdown and TSANet Action
+> Text field on a Zendesk ticket.
+
+Creating a brand-new outbound request still needs the sidebar app (or the TSANet
+web app), because each partner's request form is different. The native fields
+cover responding to inbound cases and exchanging notes.
+
 ## Responding and Adding Notes
 
 Once a collaboration is active, both sides keep working it through notes.
 
 * **Respond Now** posts a response to the partner on an open request.
-* **Add Note** posts a note to the collaboration. A note has two parts: a
-  **Subject** (a short summary) and optional **Details** (the longer body).
-  Fill in only the Subject if a short note is enough. When you add a note you
-  also choose who can see it:
+* **Add Note** posts a note to the collaboration. A note has a **Subject** (a
+  short summary) and optional **Details** (the longer body); fill in only the
+  Subject if a short note is enough. When you add a note you also choose who can
+  see it:
   * **Internal** (the default) keeps the note in Zendesk only. It is **not**
-    sent to the partner — use it for private notes to your own team.
+    sent to the partner. Use it for private notes to your own team.
+  * **Partner only** sends the note to the partner but **hides it from the end
+    customer**. Use it for partner-directed troubleshooting the customer should
+    not see. It also appears as an internal note on the ticket so your team has
+    a record.
   * **Public** sends the note to the partner **and** shows it to the end
     customer on the ticket.
 
 {% hint style="info" %}
-The rule is simple: **public content reaches the partner; internal notes stay
-in Zendesk.** A normal **public reply** typed in the Zendesk composer is also
-forwarded to the partner automatically — so you can answer a partner from the
-ticket itself, not only from the panel. Internal comments are never forwarded.
+**Partner-only lives only in the app dialog or the TSANet Action field.**
+Zendesk's own reply box offers just *Public reply* and *Internal note* and
+cannot be changed, so it cannot send a partner-only note. A normal **public
+reply** typed in the Zendesk composer reaches the partner *and* the end customer
+(it is forwarded to the partner automatically); an **internal note** stays in
+Zendesk only. To reach the partner while hiding from the customer, use **Add
+Note, Partner only** in the sidebar, set **TSANet Action to Add Note** on the
+ticket, or apply the **TSANet: Send partner-only note** macro.
 {% endhint %}
 
 > 📸 **Screenshot placeholder:** The Add Note dialog showing the Subject and
-> Details fields and the Public / Internal choice.
+> Details fields and the Internal / Partner only / Public choice.
 
 Notes posted by the partner are mirrored into the Zendesk ticket as internal
 comments, so the whole team can follow the conversation from the ticket without
-opening the panel. Each mirrored note appears only once, and your own public
-replies are not echoed back into the ticket as duplicates.
+opening the panel. Each note is labeled by direction, **You** for notes your
+team sent and the partner company for notes received, so it is clear who said
+what. Each mirrored note appears only once, and your own public replies are not
+echoed back into the ticket as duplicates.
 
 ## Ongoing Collaboration
 
