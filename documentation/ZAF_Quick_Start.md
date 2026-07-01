@@ -1,7 +1,7 @@
 # TSANet Connect — ZAF App Quick Start Guide
 
-**App version:** v1.0.29  
-**Last updated:** May 2026  
+**App version:** v1.0.42  
+**Last updated:** June 2026  
 **Time to complete:** ~30 minutes
 
 This guide gets the TSANet Connect sidebar app installed and working in your Zendesk instance. When done, agents will see all active TSANet collaboration cases directly on every ticket.
@@ -17,7 +17,7 @@ Before starting, make sure you have:
 | Zendesk Admin access | You need Apps & Integrations → Private Apps permission |
 | TSANet API credentials | Email membership@tsanet.org to request a dedicated API user |
 | TSANet environment | BETA (`connect2.tsanet.net`) or PRODUCTION (`connect2.tsanet.org`) |
-| App ZIP file | `tsanet-connect-v1.0.29.zip` |
+| App ZIP file | `tsanet-connect-v1.0.42.zip` (from the [latest release](https://github.com/tsanetgit/Zendesk_App/releases)) |
 
 ---
 
@@ -43,7 +43,7 @@ The app uses four custom ticket fields to store TSANet data. Create each one in 
 1. Go to **Admin Center → Apps and Integrations → Zendesk Support Apps**
 2. Click **Upload private app** (top-right)
 3. Give it a name: `TSANet Connect`
-4. Upload `tsanet-connect-v1.0.29.zip`
+4. Upload `tsanet-connect-v1.0.42.zip`
 5. Click **Upload**
 
 Zendesk will validate the package and show the installation settings screen.
@@ -105,6 +105,8 @@ This Zendesk trigger emails the ticket assignee the moment an SLA breach is dete
      ```
 5. Click **Create**
 
+> This trigger fires when the `tsanet_sla_breached` tag is added — normally by the ZAF background poller while an agent has Zendesk open. If you want the tag applied even when no agent is online, see the optional, externally-hosted [GitHub Actions SLA Monitor (Optional)](https://github.com/tsanetgit/Zendesk_App/blob/main/GitHub_Actions_SLA_Monitor.md) — not required for the integration to work.
+
 ---
 
 ## What the App Does
@@ -125,14 +127,39 @@ The sidebar panel adapts based on whether the current ticket is linked to a TSAN
   - 🔴 Red: under 30 minutes remaining
   - ⚠️ BREACHED: deadline passed
 - **Partner engineer contact details** (once accepted)
-- **Action buttons:** Accept, Reject, Request Info, Respond, Add Note (Subject + Details fields), Close (outbound only)
+- **Action buttons:** Accept, Reject, Request Info, Respond, Add Note (Subject + Details, with an **Internal / Partner only / Public** choice), Close (outbound only)
 
 **Background behavior (always active while Zendesk is open):**
-- Polls TSANet every 5 minutes for new inbound collaboration requests and auto-creates Zendesk tickets
+- Inbound cases are created **server-side by ZIS push** — the TSANet webhook delivers to ZIS (secured by callbackAuth) and a Zendesk ticket is created automatically. The sidebar's 1-minute poll is now a **fallback** that defers to push, so no duplicate ticket is created when push is working.
 - Checks for SLA breaches and adds the `tsanet_sla_breached` tag to overdue tickets, firing the email trigger
-- Mirrors TSANet collaboration notes to the Zendesk ticket thread as **internal comments** — agents can read partner communication directly in the ticket without opening the sidebar
+- Mirrors TSANet collaboration notes to the Zendesk ticket thread as **internal comments** — agents can read partner communication directly in the ticket without opening the sidebar. Each note is labeled by direction — **You** for notes you sent, the partner company for notes received (sidebar and mirrored comment). A note that is your own forwarded **public** reply is skipped, so it doesn't echo back as a duplicate internal comment.
 
 > **SLA scope:** The countdown and breach alerting only apply to the **initial acknowledgment** deadline. Once a case is Accepted, Rejected, or Info Requested, TSANet stops tracking the SLA and the countdown disappears.
+
+---
+
+## Notes: Internal / Partner-only / Public
+
+A note can go to three different audiences. The app's **Add Note** dialog gives you all three as a Visibility choice:
+
+| Add Note → Visibility | Goes to the **partner**? | Visible to the **end customer**? |
+|---|---|---|
+| **Internal** (default) | No | No — internal Zendesk comment only |
+| **Partner only** | **Yes** (TSANet note) | No — surfaces as an internal Zendesk comment for your record |
+| **Public** | **Yes** (forwarded as a TSANet note) | Yes — posted as a public reply |
+
+**Partner-only** is the middle tier: the partner sees it, the end customer does not. It posts the note straight to TSANet and writes no public reply; you still get an internal record on the ticket. (Added in app v1.0.43.)
+
+### Heads-up: Zendesk's native reply menu is only Public / Internal
+
+Zendesk's own composer toggle offers just **Public reply** and **Internal note** — that control belongs to Zendesk and **cannot be extended to a third option**. So partner-only is available **only** through the app's **Add Note** dialog (or, without the app, the **TSANet Action** field — see the ZIS Quick Start). If an agent types directly in the native composer:
+
+| Native composer | Partner? | Customer? |
+|---|---|---|
+| **Public reply** | **Yes** (forwarded automatically) | Yes |
+| **Internal note** | No | No |
+
+There is no native-composer way to reach the partner while hiding from the customer — use **Add Note → Partner only**. Public replies are forwarded to the partner automatically by a Zendesk trigger (see the ZIS Quick Start), so a public **Add Note** simply posts the public reply and lets that trigger deliver it, rather than sending it twice.
 
 ---
 

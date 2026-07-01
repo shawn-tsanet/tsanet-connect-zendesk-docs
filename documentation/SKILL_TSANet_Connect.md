@@ -1,6 +1,6 @@
 ---
 name: tsanet-connect
-description: Expert implementation guide for TSANet Connect integrations with Zendesk. Covers the ZAF sidebar app, ZIS bearer token infrastructure, GitHub Actions automation, Zendesk custom fields, and all known API quirks and gotchas discovered through production implementation.
+description: Expert implementation guide for TSANet Connect integrations with Zendesk. Covers the ZAF sidebar app, ZIS OAuth client-credentials (Microsoft Entra) auth, inbound push delivery via callbackAuth, the optional GitHub Actions SLA monitor, Zendesk custom fields, and all known API quirks and gotchas discovered through production implementation. (The legacy ZIS bearer-token connection and its GitHub Actions refresh job are retired and retained only for reference.)
 trigger: Use when the user is implementing TSANet Connect with Zendesk, building a ZAF (Zendesk Apps Framework) sidebar app for TSANet, setting up ZIS (Zendesk Integration Services) for TSANet, working with the TSANet REST API, configuring GitHub Actions for TSANet token refresh or SLA monitoring, creating Zendesk custom fields for TSANet data, debugging TSANet collaboration case flows, or asks about TSANet Connect, TSANet API, ZAF app, ZIS bearer token, SLA breach detection, or collaboration case lifecycle. Also trigger on "tsanet", "collaboration case", "TSANet token", "respondBy", "ZIS bearer", or "ZAF sidebar" in any implementation context.
 ---
 
@@ -9,7 +9,7 @@ trigger: Use when the user is implementing TSANet Connect with Zendesk, building
 You are a specialized implementation assistant for TSANet Connect + Zendesk integrations. You have deep knowledge of the TSANet REST API, Zendesk Apps Framework (ZAF), Zendesk Integration Services (ZIS), and all the undocumented quirks, API restrictions, and architectural constraints discovered through a complete production implementation.
 
 When a member asks for implementation help, always:
-1. Identify which integration layer they need (ZAF app, ZIS, GitHub Actions, or custom REST)
+1. Identify which integration layer they need (ZAF app, ZIS, or custom REST)
 2. Surface relevant API gotchas before they hit them
 3. Recommend the proven patterns from production — don't invent new approaches for solved problems
 
@@ -17,32 +17,28 @@ When a member asks for implementation help, always:
 
 ## Architecture Overview
 
-A complete TSANet Connect + Zendesk integration has three layers:
+A complete TSANet Connect + Zendesk integration has two layers:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  LAYER 1: ZAF Sidebar App (agents use this)             │
 │  • sidebar panel on every Zendesk ticket                │
 │  • reads/writes TSANet API via ZAF proxy                │
-│  • background page polls for inbound cases every 5 min  │
+│  • background page polls for inbound cases every 1 min  │
 │  • mirrors TSANet notes → Zendesk internal comments     │
 └─────────────────────────────────────────────────────────┘
 ┌─────────────────────────────────────────────────────────┐
-│  LAYER 2: ZIS Bearer Token (infrastructure)             │
-│  • stores live TSANet JWT inside Zendesk's ZIS layer    │
-│  • enables ZIS flows to call TSANet API without auth    │
-│  • must be refreshed before JWT expires (~60 min)       │
-└─────────────────────────────────────────────────────────┘
-┌─────────────────────────────────────────────────────────┐
-│  LAYER 3: GitHub Actions (server-side automation)       │
-│  • refresh-token job: keeps ZIS bearer connection live  │
-│  • sla-monitor job: tags Zendesk tickets on SLA breach  │
-│  • runs at :00 and :50 every hour, no browser required  │
+│  LAYER 2: ZIS OAuth Connection (Entra)                  │
+│  • holds TSANet-issued Entra client credential          │
+│  • mints/renews its own short-lived tokens              │
+│  • no static token to refresh (retires bearer job)      │
 └─────────────────────────────────────────────────────────┘
 ```
 
+An optional, externally-hosted GitHub Actions workflow can add SLA breach alerting on top of this — it is not part of the core integration, needs its own GitHub repository/Actions/secrets, and is documented separately in `GitHub_Actions_SLA_Monitor.md`.
+
 **What ZIS flows are NOT used for:**
-ZIS scheduled polling (`flow_poll_tsanet`) is architecturally broken — ZIS flows cannot call ZIS management endpoints (circular OAuth scope), and ZIS cannot receive TSANet push notifications (TSANet sends no `Authorization` header on webhooks). GitHub Actions is the only viable server-side scheduler. Do not attempt to build ZIS-based polling or ZIS-based token refresh flows.
+ZIS scheduled polling (`flow_poll_tsanet`) is architecturally broken — ZIS flows cannot call ZIS management endpoints (circular OAuth scope). What is retired is ZIS-based token *refresh*, replaced by the OAuth client-credentials connection (see ZIS section). ZIS now CAN receive an inbound TSANet push via a generic inbound webhook secured by the `callbackAuth` capability (API v3.1.0); previously this was blocked because TSANet sent no `Authorization` header on webhooks. Do not attempt to rebuild ZIS-based polling or ZIS-based token refresh flows.
 
 ---
 
@@ -68,6 +64,15 @@ Authorization: Bearer <accessToken>
 ```
 
 > **Verify identity after login:** always call `GET /v1/me` during development to confirm credentials and capture `companyId`. The `company.domain` field is important — see Accept bug below.
+
+### Authentication — OAuth 2.0 client credentials (Microsoft Entra, live / default)
+This is now the **live, default** auth scheme for server-to-server integrations, validated end to end on TSANet's Beta environment (issue #1 closed). Inbound webhook delivery (TSANet -> ZIS) uses the `callbackAuth` capability, delivered in API v3.1.0 and validated on Beta (issue #2 closed).
+
+- Obtain a token from Microsoft Entra via the **client credentials** grant: `POST https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/token` with `grant_type=client_credentials`, your TSANet-issued `client_id`/`client_secret`, and `scope=api://{audience}/.default` (TSANet provides the audience value). Pass the result as a Bearer token.
+- **Service principal provisioning is required.** The API accepts an app-only token only if your service principal's object ID has been provisioned by TSANet; provisioning is also what maps your tokens to your member company. Contact TSANet with your service principal OID to be onboarded.
+- The API accepts the default v1-format Entra token (bare-GUID `aud` claim) — no `requestedAccessTokenVersion` change is needed on the client app registration.
+- Tokens live ~60 minutes, but unlike the legacy `/v1/login` JWT, the **caller re-mints automatically from the long-lived client credential** — there is no static token to refresh. This is what retires the ZIS bearer-token refresh workaround (see ZIS section).
+- Entra client secrets are random strings that can begin with punctuation (a leading `.` has been seen in production). Store and transmit them verbatim; "cleaning" the value breaks authentication with `AADSTS7000215`.
 
 ### Key Endpoints
 
@@ -113,6 +118,8 @@ GET /v2/collaboration-requests/list?type=INBOUND&updatedAfter=2026-01-01T00:00:0
 ```
 
 ### Notes API — Critical Behavior
+> For when a note reaches the partner vs. stays internal, see **Inbound Comment Forwarding & Note Visibility** (public/internal model).
+
 - `summary` is **required**, max 500 chars
 - `description` is optional, max 5,000 chars
 - **IMPORTANT:** The TSANet web UI always renders both `summary` AND `description` as separate labeled sections. If you POST `{ summary: "text", description: "text" }` with identical values, the web UI shows it twice — it looks like duplication but it's intentional rendering.
@@ -126,7 +133,7 @@ POST /v1/collaboration-requests/{token}/notes
 ```
 
 ### Notes: HTML in Responses
-TSANet returns note content as HTML (e.g. `<p>text</p>`, `<br/>` tags). Strip HTML before displaying:
+TSANet returns **note** content (`summary` / `description`) as HTML (e.g. `<p>text</p>`, `<br/>` tags). Strip it to plain text before displaying. (The process form's `adminNote` is the exception — it is authored HTML meant to render, not strip; see **Process Form Rendering** below.)
 ```javascript
 function stripHtml(html) {
   if (!html) return '';
@@ -137,6 +144,50 @@ function stripHtml(html) {
     .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
     .trim();
+}
+```
+
+### Process Form Rendering — Custom Field Options and `adminNote`
+When you render a partner's process form (`GET /v1/forms/company/{id}` or `/forms/department/{id}`), two fields have non-obvious shapes that cost real bugs:
+
+**SELECT custom field `options` are newline-delimited, not comma-delimited.** The `customFields[].options` string separates choices with newlines (CRLF), e.g. `"AHV\r\nESXi\r\nHyper-V\r\nKVM\r\nNA\r\nXenserver"`. The structured `selections[]` array exists in the schema but is frequently empty. Splitting `options` on commas collapses every choice into a single option. Parse in this order: `selections[].value` if present, else split `options` on newlines, else fall back to commas.
+```javascript
+function parseOptions(f) {
+  if (Array.isArray(f.selections) && f.selections.length)
+    return f.selections.map(function(s){ return s && s.value != null ? String(s.value).trim() : ''; }).filter(Boolean);
+  var raw = f.options || '';
+  var p = raw.split(/\r\n|\r|\n/).map(function(o){ return o.trim(); }).filter(Boolean);
+  return p.length > 1 ? p : raw.split(',').map(function(o){ return o.trim(); }).filter(Boolean);
+}
+```
+
+**`adminNote` ("Partner instructions") is authored HTML — sanitize and render, do not strip or escape.** Unlike note descriptions (strip those to text), the form's `adminNote` is HTML the partner authored — formatted text and links — and is meant to render, matching the TSANet web app. Escaping it shows raw tags (`<p>`, `<a href...>`); stripping it loses the links. Sanitize against a tag allowlist and render: allow `p/br/strong/em/b/i/u/ul/ol/li/a/span`, force links to `target="_blank" rel="noopener noreferrer"` with `http(s):`-only hrefs, and drop scripts, event handlers, and styles.
+```javascript
+function sanitizeHtml(html) {
+  if (!html) return '';
+  var ALLOWED = { P:1, BR:1, STRONG:1, B:1, EM:1, I:1, U:1, UL:1, OL:1, LI:1, A:1, SPAN:1 };
+  var doc = new DOMParser().parseFromString(String(html), 'text/html');
+  (function clean(node){
+    var c = node.firstChild;
+    while (c) {
+      var next = c.nextSibling;
+      if (c.nodeType === 1) {                 // element
+        clean(c);
+        if (ALLOWED[c.tagName]) {
+          [].slice.call(c.attributes).forEach(function(a){
+            var n = a.name.toLowerCase();
+            if (c.tagName === 'A' && n === 'href') { if (!/^https?:\/\//i.test(c.getAttribute('href') || '')) c.removeAttribute('href'); }
+            else c.removeAttribute(a.name);
+          });
+          if (c.tagName === 'A') { c.setAttribute('target','_blank'); c.setAttribute('rel','noopener noreferrer'); }
+        } else { while (c.firstChild) node.insertBefore(c.firstChild, c); node.removeChild(c); }
+      } else if (c.nodeType === 8) {           // comment
+        node.removeChild(c);
+      }
+      c = next;
+    }
+  })(doc.body);
+  return doc.body.innerHTML;
 }
 ```
 
@@ -374,7 +425,7 @@ The `background.html` page runs continuously while any Zendesk tab is open. Use 
 
 ```javascript
 // background.html — polling loop
-var POLL_INTERVAL = 5 * 60 * 1000; // 5 minutes
+var POLL_INTERVAL = 60 * 1000; // 1 minute (JWT is cached ~50 min, so a short interval does not increase login calls; ~60s is the practical floor before TSANet rate-limits)
 
 function pollLoop() {
   checkInboundCases();
@@ -434,6 +485,43 @@ function syncNotesToZendesk(notes, ticketId) {
 
 Call `syncNotesToZendesk(notes, ticketId)` every time you load the notes list for a ticket.
 
+**Direction labels (issue #62):** label each note by direction in both the sidebar and the mirrored comment — **You** when `note.companyName` === your member company (you sent it), otherwise the partner company (received). Sidebar uses an arrow prefix; the mirrored comment header reads `[TSANet Note -> sent]` vs `[TSANet Note <- received]`. Best-effort: `companyName` is the only available signal and is ambiguous when both orgs share a name (e.g. sandbox "test IBM"); the durable fix is an explicit platform direction field on the note object.
+
+## Inbound Comment Forwarding & Note Visibility (issues #34, #36, #38, #56, #69)
+
+**Rule: only public content reaches the partner; internal notes stay in Zendesk.**
+
+### Forwarding a public reply to the partner
+When an agent posts a **public reply** on a TSANet ticket, a Zendesk trigger forwards it to the partner as a TSANet note. Internal comments are never forwarded.
+
+```
+Agent PUBLIC reply on a TSANet ticket (inbound or outbound)
+  -> Zendesk trigger (comment is public AND tag tsanet_inbound OR tsanet_outbound)
+  -> Zendesk webhook (Basic auth)
+  -> ZIS inbound webhook (source_system "zendesk", event_type "public_comment")
+  -> jobspec_forward_comment -> flow_forward_comment
+        GuardToken -> GuardComment -> GuardAuthor (agent/admin only)
+        ForwardNote -> action_ts_note -> POST /collaboration-requests/{token}/notes
+```
+
+- **Fail-closed author guard.** The flow forwards only when `author_role` (sent by the trigger as `{{current_user.role}}`) is `Agent`/`Admin`. An **End-user** public reply never forwards. **Gotcha:** `{{current_user.role}}` renders the literal **`Admin`** (not `Administrator`); ZIS `Choice` supports only `StringEquals`, so list each accepted value explicitly (`Agent`, `Admin`, plus lowercase variants).
+- **Loop-safe.** The note mirror writes *internal* comments, which never re-fire this *public*-comment trigger.
+
+### Note visibility: Internal / Partner-only / Public
+A note has three possible audiences. The ZAF **Add Note** dialog exposes all three as a Visibility choice (issue #56, v1.0.43):
+- **Internal** (default) -> internal Zendesk comment only. **Never** POSTed to TSANet.
+- **Partner only** -> `POST /notes` to the partner with **no** public Zendesk comment, so the end customer never sees it. The note mirrors back as an internal comment (self-authored, matches no public comment, so echo-suppression doesn't drop it), giving the agent a record.
+- **Public** -> posts **only** a public Zendesk comment; the forwarding trigger above delivers it to the partner.
+
+**Native (no-ZAF) path (issue #69):** setting the **TSANet Action** field to **Add Note** is the native partner-only send — `flow_field_action` posts the note and writes an internal **receipt** comment carrying a `tsanet-note-id:<id>` marker (from the `POST /notes` response, `$.ts.id`). The shared marker is what the ZAF mirror dedups on, so there's exactly one internal record whether or not ZAF is installed.
+
+**Zendesk's native composer is binary and cannot be extended.** The built-in *Public reply* / *Internal note* toggle is owned by Zendesk; an app or admin cannot add a third "partner only" option to it. Partner-only is reachable **only** via the ZAF Add Note dialog or the TSANet Action field / macro — agents must be trained to use those, not the native reply menu, which will never show partner-only.
+
+**Single-path rule (issue #38):** a public Add Note must **not** also `POST /notes` itself — doing both makes the partner receive the note twice (the explicit POST plus the trigger re-forwarding the public comment). Post the public comment and let the trigger forward it.
+
+### Echo suppression in the note mirror
+`syncNotesToZendesk` mirrors partner notes into Zendesk as internal comments. It **skips** a note that is *self-authored* (`companyName` === your member company) **and** matches an existing public comment — so a forwarded public reply doesn't bounce back as a redundant internal `[TSANet Note]`. Partner notes are never suppressed, even on a text collision.
+
 ### SLA Countdown Display
 ```javascript
 function slaDisplay(respondBy) {
@@ -467,17 +555,19 @@ zip -r your-app-v1.0.0.zip manifest.json assets/ translations/ -x "*.DS_Store"
 
 ## ZIS Bearer Token Setup
 
+> **LEGACY — retired, retained for reference only.** This static-bearer method (and the GitHub Actions refresh job that kept it alive) was the workaround for the TSANet JWT's 60-minute expiry. It has been replaced by the ZIS **OAuth client-credentials (Microsoft Entra) connection** that mints and renews Entra tokens itself — validated end to end on Beta, with [issue #1](https://github.com/tsanetgit/Zendesk_App/issues/1) closed. Use the OAuth client-credentials connection (documented under **ZIS OAuth Client-Credentials Connection** below) for all new work; do not build the bearer-token connection or its refresh job for a new installation.
+
 ZIS needs to store the live TSANet JWT so that ZIS flows can call the TSANet API. This requires three one-time setup steps:
 
 ### Step 1 — Create a ZIS Integration (once per Zendesk subdomain)
 ```bash
 curl -X POST \
-  "https://SUBDOMAIN.zendesk.com/api/services/zis/integrations" \
+  "https://SUBDOMAIN.zendesk.com/api/services/zis/registry/tsanet_connect" \
   -u "EMAIL/token:API_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"integration":{"name":"tsanet_connect","description":"TSANet Connect"}}'
+  -d '{"description":"TSANet Connect"}'
 ```
-409 Conflict = already exists, proceed.
+The integration name goes in the URL path under `/registry/` (the ZIS Registry API create-integration endpoint), not the request body. 409 Conflict = already exists, proceed.
 
 ### Step 2 — Create a ZIS OAuth Client (in Admin Center)
 Admin Center → Apps and integrations → APIs → OAuth clients → Add OAuth client.
@@ -485,7 +575,7 @@ Admin Center → Apps and integrations → APIs → OAuth clients → Add OAuth 
 - Copy the Client ID — needed for token refresh job
 
 ### Step 3 — Install GitHub Actions Workflow
-See GitHub Actions section below.
+**Legacy, retired.** The refresh-token job that kept this bearer connection alive is retired along with the connection itself — do not build it for a new installation.
 
 ### Verifying the ZIS Connection
 ZIS custom integrations **do not appear in Admin Center UI**. Verify via API:
@@ -497,43 +587,50 @@ Note: ZIS management endpoints (`/api/services/zis/`) **always return 404 with a
 
 ---
 
-## GitHub Actions — TSANet Maintenance Workflow
+## ZIS OAuth Client-Credentials Connection (Entra — successor to the bearer pattern)
 
-Two jobs in one workflow file. Run at :00 and :50 every hour.
+Once TSANet has provisioned your service principal (see the Entra authentication section), ZIS can hold the long-lived client credential and mint/renew the short-lived Entra tokens itself. No GitHub Actions refresh job, no static bearer connection. Validated end to end on TSANet's Beta environment (issue #1 closed).
 
-### Required Repository Secrets
-| Secret | Value |
-|---|---|
-| `TSANET_USERNAME` | TSANet API user email |
-| `TSANET_PASSWORD` | TSANet API user password |
-| `ZENDESK_SUBDOMAIN` | e.g. `yourcompany` (no `.zendesk.com`) |
-| `ZENDESK_EMAIL` | Zendesk admin email for API auth |
-| `ZENDESK_API_TOKEN` | Zendesk API token |
-| `ZIS_CLIENT_ID` | ZIS OAuth client ID from Admin Center |
-| `ZENDESK_FIELD_ID_TOKEN` | Field ID of the TSANet Token custom field |
-
-### Job 1: refresh-token
-1. `POST /v1/login` → get fresh TSANet JWT
-2. `POST /oauth/tokens` (Zendesk) → get ZIS OAuth token using ZIS Client ID
-3. `DELETE` old ZIS bearer connection `tsanet_api` (204 or 404 = both OK)
-4. `POST` new ZIS bearer connection with fresh JWT
-
-### Job 2: sla-monitor
-1. `POST /v1/login` → get fresh TSANet JWT
-2. `GET /v1/collaboration-requests?status=OPEN` → find all open cases (legacy path, still returns 200; `/v2/collaboration-requests?status=OPEN` is the current equivalent)
-3. For each case where `respondBy` is in the past:
-   - Search Zendesk for ticket by TSANet token field value
-   - Check if ticket already has `tsanet_sla_breached` tag (skip if so — prevents duplicate triggers)
-   - `POST /api/v2/tickets/{id}/tags.json` with `{"tags":["tsanet_sla_breached"]}`
-   - Zendesk trigger fires → emails ticket assignee
-
-> **Tag POST is additive** — `POST /api/v2/tickets/{id}/tags.json` preserves existing tags. It doesn't replace them. This is what you want.
-
-### Push scope issue
-If `git push` with the workflow file is rejected:
+### Step 1 — Register the OAuth client (scope goes in `default_scopes`)
 ```bash
-gh auth refresh -s workflow
+curl -X POST \
+  "https://SUBDOMAIN.zendesk.com/api/services/zis/connections/oauth/clients/tsanet_connect" \
+  -H "Authorization: Bearer ZIS_OAUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "tsanet_entra",
+    "grant_type": "client_credentials",
+    "client_id": "YOUR_ENTRA_CLIENT_ID",
+    "client_secret": "YOUR_ENTRA_CLIENT_SECRET",
+    "token_url": "https://login.microsoftonline.com/TENANT_ID/oauth2/v2.0/token",
+    "default_scopes": "api://AUDIENCE/.default"
+  }'
 ```
+
+### Step 2 — Create the connection (no browser / admin-consent step)
+```bash
+curl -X POST \
+  "https://SUBDOMAIN.zendesk.com/api/services/zis/connections/oauth/start/tsanet_connect" \
+  -H "Authorization: Bearer ZIS_OAUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"oauth_client_name": "tsanet_entra", "name": "tsanet_oauth"}'
+```
+The response contains a `redirect_url` with a `verification_code`. **GET that `access_codes` URL (with the ZIS bearer) to complete creation — this step is required even for client_credentials.** The connection then holds a live `access_token` and `token_expiry`; ZIS renews expired tokens automatically by re-running the client-credentials flow.
+
+### Gotchas (each cost real debugging time)
+- **Updating a registered OAuth client is `PATCH`** `/connections/oauth/clients/{integration}/{uuid}` — `PUT` returns 405.
+- **The documented force-refresh endpoint** (`POST /api/services/zis/connections/refresh/{integration}?name=...`) **returns 405** — renewal appears to be use-triggered only.
+- **`AADSTS7000215` (invalid client secret) through ZIS while the same secret works directly** means the stored value is corrupted — re-PATCH the client with the verbatim secret. Watch for editor/paste artifacts (merged lines, trimmed leading punctuation).
+- Show the connection with `GET /api/services/zis/connections/{integration}?name=...` to inspect `token_expiry` and confirm minting worked.
+- **The connection NAME is per-instance.** Substitute your instance's connection name in **all five** TSANet API actions (`action_ts_*`) when deploying the bundle. An incomplete substitution makes ingest still return 200 while the `action_ts_*` calls silently no-op — nothing reaches TSANet.
+
+---
+
+## GitHub Actions SLA Monitor (Optional, External)
+
+An optional, externally-hosted GitHub Actions workflow (`sla-monitor`) can tag a Zendesk ticket when its TSANet acknowledgment SLA has passed. It is **not** part of the core integration — it needs its own GitHub repository, GitHub Actions, and stored secrets — so the full setup, the workflow YAML, required secrets, and troubleshooting live in the standalone `GitHub_Actions_SLA_Monitor.md` document, not here. Point a member there if they ask for SLA breach alerting inside Zendesk.
+
+The legacy `refresh-token` job (which kept a static bearer connection alive) is retired along with that connection; do not build it for a new installation — see **ZIS OAuth Client-Credentials Connection** above.
 
 ---
 
@@ -578,12 +675,14 @@ Create in Admin Center → Objects and rules → Business rules → Triggers:
 | Action buttons 2–4 do nothing silently | `prompt()`/`confirm()` blocked in cross-origin iframes | Replace with custom inline modal HTML |
 | Accept returns "Error processing request" | `engineerEmail` required but undocumented | Include `engineerEmail` in approval POST body |
 | Accept fails with domain validation error | Agent's Zendesk email ≠ TSANet company domain | Use `settings.tsanet_username` as `engineerEmail` |
-| Notes show raw HTML tags | TSANet returns HTML-formatted note content | Add `stripHtml()` helper; apply before display |
+| Notes show raw HTML tags | TSANet returns HTML-formatted note `summary`/`description` | Add `stripHtml()` helper; apply before display |
+| Picklist (SELECT) field shows all choices as one combined option | `options` string is newline-delimited (CRLF), not comma; `selections[]` often empty | Split `options` on `\r\n`/`\n` (fall back to commas); prefer `selections[].value` |
+| Form "Partner instructions" (`adminNote`) shows raw HTML tags | `adminNote` is authored HTML but was escaped/stripped before display | Sanitize against a tag allowlist and render (links → new tab); do not escape or strip it |
 | Add Note causes duplication in TSANet web app | TSANet renders both `summary` and `description` as separate labeled sections | Use two-field modal (Subject/Details); only send `description` if user fills it |
 | Close button fails on inbound cases | TSANet only allows the submitting company to close | Show Close button only for outbound (`direction === 'OUTBOUND'`) cases |
 | Respond By field not updating in Zendesk | Zendesk Date fields silently reject ISO datetimes | Truncate TSANet `respondBy` to `YYYY-MM-DD` with `.substring(0, 10)` |
 | SLA shown on ACCEPTED cases | TSANet SLA is acknowledgment-only | Gate all SLA display and breach detection on `responded === false` |
-| ZIS polling automation triggers "no requestToken" | ZIS flow requires `requestToken` but automation payload has none | ZIS polling is not viable; retire `flow_poll_tsanet`, use ZAF poller + GitHub Actions |
+| ZIS polling automation triggers "no requestToken" | ZIS flow requires `requestToken` but automation payload has none | ZIS polling is not viable; retire `flow_poll_tsanet`, use the ZAF poller (push delivery via callbackAuth is primary) |
 | ZIS Admin Center shows no `tsanet_connect` integration | ZIS custom integrations are API-only; don't appear in Admin Center UI | Verify via `GET /api/services/zis/integrations/tsanet_connect/connections` API call |
 | App upload fails with "Missing translation file for locale 'en'" | `translations/en.json` absent from ZIP | Add `translations/en.json` with minimum app name/description JSON |
 | App icon missing from Zendesk apps tray | No `icon` field in manifest + no logo file | Add `"icon": "assets/logo.png"` to manifest; include 128×128 transparent PNG |
@@ -609,6 +708,8 @@ Create in Admin Center → Objects and rules → Business rules → Triggers:
 - **Test submissions:** set `testSubmission: true` on POST to submit without creating real SLA timers or notifications.
 - **`token` is the primary key** — save it immediately on case creation. The numeric `id` field exists but `token` is used in all API paths.
 - **Incremental poll pattern:** store `updatedAt` of the last synced record; pass as `updatedAfter` on next poll. This matches the Salesforce connector's 15-minute sync pattern.
+- **SELECT field `options` are newline-delimited** — the process-form `customFields[].options` string separates choices with `\r\n`, not commas, and `selections[]` is often empty. Split on newlines. See *Process Form Rendering*.
+- **`adminNote` is HTML to render, not strip** — the form's admin note ("Partner instructions") is authored HTML (links); sanitize and render it. Only note `summary`/`description` should be stripped to plain text.
 
 ---
 
@@ -629,10 +730,9 @@ Create in Admin Center → Objects and rules → Business rules → Triggers:
 - [ ] Add 128×128 `logo.png` + `"icon"` to manifest
 - [ ] Implement adaptive height (collapse on non-TSANet tickets)
 - [ ] Deploy via Admin Center manual upload (API upload is broken)
-- [ ] Push GitHub Actions `tsanet-maintenance.yml` (with `workflow` scope)
-- [ ] Set all 7 GitHub Actions secrets
 - [ ] Create `TSANet SLA Breach — Notify Assignee` Zendesk trigger
 - [ ] Create TSANet Active Collaborations view; add custom field columns manually
+- [ ] Optional: set up the externally-hosted GitHub Actions SLA monitor (`GitHub_Actions_SLA_Monitor.md`) — not required for the integration to work
 
 ---
 
@@ -649,5 +749,6 @@ Create in Admin Center → Objects and rules → Business rules → Triggers:
 | `responded` | bool | `false` = SLA clock running; `true` = acknowledged |
 | `submitterCaseNumber` | string | Your case number (set on submission) |
 | `receiverCaseNumber` | string | Partner's case number (set on their acceptance) |
+| `submitterContactDetails` | object | Submitter engineer `{name, email, phone}`. Not always present. The ZIS inbound flow stamps a `Submitter: Name <email>` line onto the created Zendesk ticket from this (issue #57) |
 | `caseNotes` | array | All CaseNoteDTO records — HTML content, strip before display |
 | `caseResponses` | array | Approval, rejection, info request records |
