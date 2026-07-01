@@ -125,9 +125,10 @@ When a new case arrives, the ZIS inbound webhook is the primary path: it creates
 
 * [ZAF App Quick Start](documentation/ZAF_Quick_Start.md) — install and configure the sidebar app (~30 min)
 * [ZIS Quick Start](documentation/ZIS_Quick_Start.md) — connect ZIS to TSANet via OAuth client credentials (Entra) and deploy the flow bundle (~30 min)
-* [Plain Language Implementation Guide](documentation/Zendesk_PlainLanguage_Implementation_Guide_v2.14.docx) — full narrative walkthrough with context and rationale (v2.14)
+* [Plain Language Implementation Guide](documentation/Zendesk_PlainLanguage_Implementation_Guide_v2.15.docx) — full narrative walkthrough with context and rationale (v2.15)
 * [Claude Code Skill](documentation/SKILL_TSANet_Connect.md) — drop this into `~/.claude/skills/tsanet-connect/SKILL.md` to give Claude Code expert knowledge of this integration
 * [GitHub Actions SLA Monitor (Optional)](https://github.com/tsanetgit/Zendesk_App/blob/main/GitHub_Actions_SLA_Monitor.md) — external add-on for an in-Zendesk SLA breach email alert; not required for the core integration
+* [ZAF Custom Build Guide (Not Recommended)](https://github.com/tsanetgit/Zendesk_App/blob/main/ZAF_Custom_Build_Guide.md) — only for members who cannot, or will not, install the pre-built ZIP; most members should skip this
 
 ---
 
