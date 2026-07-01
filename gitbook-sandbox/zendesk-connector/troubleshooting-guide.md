@@ -138,38 +138,13 @@ The breach alert is a Zendesk trigger that watches for the `tsanet_sla_breached`
 
 | Symptom | Fix |
 | --- | --- |
-| Trigger never fires | Confirm the `sla-monitor` maintenance job is running and that its `TSANet Token` field ID matches the field the app uses |
+| Trigger never fires | Confirm whatever tags `tsanet_sla_breached` is actually running (the ZAF background poller, or — if you've set it up — the optional GitHub Actions SLA monitor), and that its `TSANet Token` field ID matches the field the app uses |
 | Trigger fires over and over for the same ticket | The trigger condition must use **Current tags** (`current_tags`), not **Tags**. The wrong field name causes a silent mismatch |
 | Breaches reported on accepted cases | Expected: the TSANet SLA tracks the first response only. Once a case is accepted, rejected, or moved to Information, breach detection stops |
 
-### The scheduled maintenance jobs (GitHub Actions)
-
-The scheduled **sla-monitor** job tags tickets whose response deadline has passed. (Older setups also ran a **refresh-token** job to renew a stored TSANet token; current setups use a ZIS OAuth client-credentials connection that renews its own tokens, so that job is legacy.)
-
-<details>
-
-<summary>The job fails to authenticate to TSANet or Zendesk</summary>
-
-Re-check the repository secrets — all of them must be present and correct:
-`TSANET_USERNAME`, `TSANET_PASSWORD`, `ZENDESK_SUBDOMAIN` (no `.zendesk.com`), `ZENDESK_EMAIL`, `ZENDESK_API_TOKEN`, `ZIS_CLIENT_ID`, and `ZENDESK_FIELD_ID_TOKEN`.
-
-</details>
-
-<details>
-
-<summary>Pushing the workflow file is rejected by GitHub</summary>
-
-The GitHub token was issued without the `workflow` scope. Run `gh auth refresh -s workflow` once, then push again.
-
-</details>
-
-<details>
-
-<summary>sla-monitor finds open cases but tags no tickets</summary>
-
-The `ZENDESK_FIELD_ID_TOKEN` secret must match the **TSANet Token** field ID the ZAF app writes to. If they differ, the job cannot find the matching ticket.
-
-</details>
+{% hint style="info" %}
+If you've set up the optional, externally-hosted **GitHub Actions SLA monitor**, its own setup and troubleshooting (repository secrets, the workflow file, authentication failures) live in the separate [GitHub Actions SLA Monitor (Optional)](github-actions-sla-monitor.md) guide, not here. It is not part of the core integration.
+{% endhint %}
 
 ### The ZIS connection / token problems
 
@@ -202,10 +177,10 @@ When something is wrong and you are not sure where to start, work through these 
 
 1. **Credentials** — are the TSANet username/password in the app settings correct, and is the **environment** (`BETA`/`PRODUCTION`) right?
 2. **Domain** — is the TSANet API username on your company's registered domain?
-3. **Field IDs** — do the five custom field IDs in the app settings match the actual fields, and does the Token field ID match the maintenance job secret?
+3. **Field IDs** — do the five custom field IDs in the app settings match the actual fields?
 4. **Webhook** — does TSANet have the correct inbound webhook URL, username, and password?
-5. **Maintenance job** — is the `sla-monitor` GitHub Actions job green on its last run? (Legacy setups also run a `refresh-token` job; current setups do not.)
-6. **Triggers** — do tag-based triggers use **Current tags**?
+5. **Triggers** — do tag-based triggers use **Current tags**?
+6. **Optional SLA monitor** — if you've set up the externally-hosted GitHub Actions SLA monitor, is its last run green? (See the separate guide for that job's own diagnostics.)
 
 ## Need Help
 

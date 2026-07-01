@@ -146,25 +146,24 @@ With this in place, the ZAF app's **Add Note → Public** simply posts a public
 reply and lets the trigger deliver it, so the partner receives each note once.
 {% endhint %}
 
+{% hint style="info" %}
+**TSANet authentication** uses a ZIS **OAuth client-credentials connection**
+(Microsoft Entra): ZIS mints and renews its own short-lived tokens, so no
+token-refresh job is needed. This is part of the core setup above, not an
+external add-on.
+{% endhint %}
+
 <details>
 
-<summary>Server-side maintenance: the GitHub Actions workflow</summary>
+<summary>Optional, externally-hosted: the GitHub Actions SLA monitor</summary>
 
-The integration's scheduled work runs on a clock, independent of any agent's
-browser:
-
-* **TSANet authentication.** Current setups use a ZIS **OAuth client-credentials
-  connection** (Microsoft Entra): ZIS mints and renews its own short-lived
-  tokens, so no token-refresh job is needed. (Older setups stored a TSANet token
-  in the ZIS connection and refreshed it every 60 minutes with a scheduled job —
-  that pattern is now legacy.)
-* **SLA monitoring.** A scheduled job pulls all open TSANet cases, finds any
-  whose response deadline has passed, and tags the matching Zendesk ticket.
-
-The reference implementation runs both as a GitHub Actions workflow on a cron
-schedule. One-time setup is about 30 minutes: create a repository, add the
-required repository secrets, drop in the workflow file, and run it once
-manually to confirm both jobs succeed. After that it runs unattended.
+If you want an email alert inside Zendesk when a case's acknowledgment SLA
+passes — even when no agent is online — an optional GitHub Actions workflow
+can tag the ticket on a schedule. This is **not** part of the core integration:
+it needs its own GitHub repository, GitHub Actions, and stored secrets, and
+TSANet enforces the acknowledgment SLA on its own servers regardless. Full
+setup (about 30 minutes) is in the separate
+[GitHub Actions SLA Monitor (Optional)](github-actions-sla-monitor.md) guide.
 
 </details>
 

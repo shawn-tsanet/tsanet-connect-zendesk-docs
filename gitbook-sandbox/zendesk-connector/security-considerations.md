@@ -18,7 +18,9 @@ The integration has two moving parts, plus one optional helper:
 * **ZIS (Zendesk Integration Services)** runs server-side inside Zendesk's own
   infrastructure and handles inbound delivery from TSANet.
 * **An optional GitHub Actions job** (`sla-monitor`) runs on a schedule to flag
-  SLA breaches when no agent is online.
+  SLA breaches when no agent is online — an externally-hosted add-on, not part
+  of the core integration; see the
+  [GitHub Actions SLA Monitor (Optional)](github-actions-sla-monitor.md) guide.
 
 {% hint style="info" %}
 **Bottom line.** No data leaves Zendesk except what is required to collaborate
