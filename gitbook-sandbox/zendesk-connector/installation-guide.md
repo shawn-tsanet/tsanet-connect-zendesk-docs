@@ -79,6 +79,17 @@ Admin Center &gt; Apps and integrations &gt; APIs &gt; Zendesk API &gt; Add API
 token. Copy it immediately — you won't see it again. This authenticates the
 `curl` commands throughout this guide.
 
+{% hint style="warning" %}
+**Setup bootstrap only.** This token authenticates the one-time setup commands
+and is **not stored anywhere** — the integration's own Zendesk credential is
+the OAuth connection created in Step 3a, and you can delete this token once
+setup is complete. Zendesk is retiring API tokens for the Ticketing API:
+creation is blocked for new Zendesk accounts on **July 28, 2026** and for all
+accounts on **October 27, 2026**, and all existing tokens stop working on
+**April 30, 2027**. If your account can no longer create API tokens, contact
+membership@tsanet.org for the bootstrap alternative.
+{% endhint %}
+
 > 📸 **Screenshot placeholder:** The Add API token screen in Admin Center.
 
 ### 1b. Create a ZIS OAuth client
@@ -207,15 +218,65 @@ JSON file maintained in the TSANet Connect source repository.
 ### 3a. Create the `zendesk` connection
 
 The bundle's Zendesk-side actions (creating and updating tickets) don't
-authenticate themselves — they need a basic-auth connection named `zendesk`:
+authenticate themselves — they need an **OAuth connection named `zendesk`**.
+It stores no long-lived secret in the connection: ZIS mints short-lived
+tokens from an OAuth client on your own instance and renews them itself.
+(Earlier revisions used a basic-auth connection holding an API token; that
+form dies with Zendesk's API-token retirement — see Step 1a.)
+
+First, create a **confidential** OAuth client for the integration. Run this
+as the dedicated service user the integration should act as — its tokens act
+as the user associated with the client:
+
+```bash
+curl -s -X POST "https://{your-subdomain}.zendesk.com/api/v2/oauth/clients.json" \
+  -u "YOUR_EMAIL/token:YOUR_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"client":{"name":"TSANet Connect Integration","identifier":"tsanet_zendesk","kind":"confidential"}}'
+```
+
+Copy `client.secret` from the response — the full secret is shown **only** at
+creation. `"kind":"confidential"` must be set **at creation**: the
+client_credentials grant rejects public clients, and changing the kind later
+regenerates the secret while only ever displaying it truncated (delete and
+recreate the client if that happens).
+
+Then register a ZIS OAuth client pointing at your **own** instance's token
+endpoint, and create the connection from it:
 
 ```bash
 curl -s -X POST \
-  "https://{your-subdomain}.zendesk.com/api/services/zis/integrations/tsanet_connect/connections/basic_auth" \
+  "https://{your-subdomain}.zendesk.com/api/services/zis/connections/oauth/clients/tsanet_connect" \
   -H "Authorization: Bearer $ZIS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"name":"zendesk","username":"YOUR_EMAIL/token","password":"YOUR_API_TOKEN","allowed_domain":"{your-subdomain}.zendesk.com"}'
+  -d '{
+    "name": "zendesk_self",
+    "grant_type": "client_credentials",
+    "client_id": "tsanet_zendesk",
+    "client_secret": "YOUR_CLIENT_SECRET",
+    "token_url": "https://{your-subdomain}.zendesk.com/oauth/tokens",
+    "default_scopes": "read tickets:write"
+  }'
+
+curl -s -X POST \
+  "https://{your-subdomain}.zendesk.com/api/services/zis/connections/oauth/start/tsanet_connect" \
+  -H "Authorization: Bearer $ZIS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"oauth_client_name": "zendesk_self", "name": "zendesk"}'
 ```
+
+GET the returned `redirect_url` (with the same `$ZIS_TOKEN` bearer) to
+complete creation — the same verification step as the TSANet connection in
+Step 2. The connection then holds a live token about 30 minutes from expiry,
+which ZIS renews automatically.
+
+{% hint style="info" %}
+`read tickets:write` is the minimal scope: ticket search breaks under
+`tickets:read` alone, and the ticket create/update actions need
+`tickets:write`. **Migrating an existing install:** connection names are
+unique across types, so delete the old basic-auth `zendesk` connection first,
+then create this one under the same name — the bundle needs no changes.
+{% endhint %}
 
 ### 3b. Edit the bundle before uploading
 
@@ -473,7 +534,7 @@ There are five authentication contexts in this integration.
 | --- | --- | --- |
 | ZIS management calls (Steps 1c to 3e) | ZIS OAuth bearer (`$ZIS_TOKEN`) | Used per-session, not stored in the app |
 | ZIS to TSANet API (runtime) | OAuth client credentials (Microsoft Entra) | ZIS connection — minted and renewed automatically |
-| ZIS to Zendesk API (runtime) | Basic auth (`zendesk` connection) | ZIS connection, created in Step 3a |
+| ZIS to Zendesk API (runtime) | OAuth client credentials against your own instance (`zendesk` connection, scope `read tickets:write`) | ZIS connection, created in Step 3a — short-lived tokens, minted and renewed automatically |
 | ZAF app to Zendesk (runtime) | Inherited agent session via the ZAF SDK | Automatic, no credential needed |
 | ZAF app to TSANet API (runtime) | JWT Bearer token from login | Zendesk app settings (encrypted) |
 

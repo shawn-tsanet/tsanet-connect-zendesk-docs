@@ -155,7 +155,7 @@ Current setups use a ZIS **OAuth client-credentials connection** (Microsoft Entr
 <summary>You cannot see the integration in Admin Center</summary>
 
 ZIS custom integrations are **API-only** and do not appear in the Admin Center UI. Verify it with a direct API call:
-`GET /api/services/zis/integrations/tsanet_connect/connections`. A 404 from a standard API token is expected — ZIS management endpoints require ZIS OAuth scope.
+`GET /api/services/zis/integrations/tsanet_connect/connections`. A 401/403/404 from a standard API token is expected (e.g. `connections/all` returns 403 "API token is not supported") — ZIS management endpoints require a ZIS OAuth token.
 
 </details>
 

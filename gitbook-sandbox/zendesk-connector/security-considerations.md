@@ -80,8 +80,8 @@ everything.
 | ZAF app to TSANet API | JWT Bearer token, obtained at login. The password is a ZAF **secure setting**: the login request goes through the Zendesk proxy, which substitutes the password server-side, so it never appears in front-end code | Username is a normal app setting; the password is a **secure** setting, not exposed to the browser. The resulting JWT is held in browser memory only (about 50 minutes) and is never written to local or session storage. |
 | ZIS to TSANet API | OAuth 2.0 client credentials (Microsoft Entra). ZIS mints and renews its own short-lived tokens | The long-lived Entra client credential is stored **server-side** in the Zendesk ZIS connection store. There is no static token at rest. |
 | TSANet to ZIS (inbound) | HTTP Basic auth on every delivery, enforced by ZIS. TSANet additionally signs each delivery with an HMAC-SHA256 signature (`X-Hub-Signature-256`) | Per-subscription ingest credentials, held by TSANet for delivery and by ZIS for verification. |
-| ZIS to Zendesk | A basic-auth ZIS connection using a Zendesk API token | Stored **server-side** in the Zendesk ZIS connection store. |
-| GitHub Actions (optional) | Zendesk API token and TSANet API credentials | Encrypted GitHub Actions repository secrets. |
+| ZIS to Zendesk | OAuth 2.0 client credentials against your **own** instance, scope-limited to `read tickets:write`. ZIS mints and renews its own short-lived tokens (about 30 minutes) | The OAuth client credential is stored **server-side** in the Zendesk ZIS connection store. There is no static token and no API token at rest. |
+| GitHub Actions (optional) | Zendesk OAuth client credentials (short-lived token minted per run) and TSANet API credentials | Encrypted GitHub Actions repository secrets. |
 
 {% hint style="info" %}
 **Credential handling, stated plainly.** The TSANet API password is stored as a
@@ -115,8 +115,13 @@ validated end to end on Beta.
   memory for the life of the session and is re-minted on expiry. Nothing is
   written to local or session storage.
 * **Secrets held server-side.** ZIS connection secrets (the Entra client
-  credential and the Zendesk API token) are stored inside Zendesk's hosted secret
-  store and are not retrievable in plaintext through the API.
+  credential and the Zendesk OAuth client credential) are stored inside Zendesk's
+  hosted secret store and are not retrievable in plaintext through the API.
+* **No stored API token.** The integration stores no Zendesk API token anywhere.
+  An admin API token is used only transiently during initial setup and can be
+  deleted afterward. (Zendesk is retiring API tokens for the Ticketing API —
+  all tokens stop working on April 30, 2027 — so this is a compliance point as
+  well as a hardening one.)
 
 ## Access Control and Least Privilege
 
@@ -125,6 +130,9 @@ validated end to end on Beta.
 * **Scoped ZIS management.** ZIS connections and flows can only be managed with a
   ZIS OAuth token of the correct scope. A standard Zendesk API token cannot read
   or alter them.
+* **Scope-limited Zendesk access.** The `zendesk` connection's OAuth tokens carry
+  only `read tickets:write` — the integration can read data and write tickets,
+  but cannot modify users, settings, or anything else in the account.
 * **Fail-closed forwarding.** Comment forwarding to the partner only fires for
   agent or admin public replies. End-user replies and internal notes are never
   forwarded.
@@ -186,10 +194,23 @@ secret, so authenticity does not rest on Basic auth alone.
 
 ### Secret rotation
 
-The Entra client credential, the ingest credentials, and the Zendesk API token
-should each be rotated on a defined schedule. Rotating the Entra client
-credential is the highest-value rotation because it is the longest-lived secret
-in the system.
+The Entra client credential, the ingest credentials, and the Zendesk OAuth
+client secret should each be rotated on a defined schedule. Rotating the Entra
+client credential is the highest-value rotation because it is the longest-lived
+secret in the system. Note that regenerating a Zendesk OAuth client secret
+invalidates the ZIS connection built on it — re-register the ZIS OAuth client
+and recreate the connection as part of the rotation.
+
+### Zendesk API token retirement (migration complete)
+
+Zendesk is removing API tokens as an authentication method for the Ticketing
+API: creation is blocked for new accounts on July 28, 2026 and for all accounts
+on October 27, 2026, and all existing tokens stop working on April 30, 2027.
+The integration is ahead of this: the `zendesk` ZIS connection uses OAuth
+client credentials (no stored token), and the optional SLA monitor mints
+short-lived OAuth tokens per run. The only remaining API-token use is the
+transient setup bootstrap; accounts that can no longer create tokens can
+bootstrap with an OAuth token instead (contact membership@tsanet.org).
 
 ## Questions
 
