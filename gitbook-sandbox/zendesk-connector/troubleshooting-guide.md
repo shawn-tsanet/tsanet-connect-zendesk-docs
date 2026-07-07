@@ -138,13 +138,9 @@ The breach alert is a Zendesk trigger that watches for the `tsanet_sla_breached`
 
 | Symptom | Fix |
 | --- | --- |
-| Trigger never fires | Confirm whatever tags `tsanet_sla_breached` is actually running (the ZAF background poller, or — if you've set it up — the optional GitHub Actions SLA monitor), and that its `TSANet Token` field ID matches the field the app uses |
+| Trigger never fires | Confirm the ZAF background poller is running (an agent must have Zendesk open) and that its `TSANet Token` field ID matches the field the app uses |
 | Trigger fires over and over for the same ticket | The trigger condition must use **Current tags** (`current_tags`), not **Tags**. The wrong field name causes a silent mismatch |
 | Breaches reported on accepted cases | Expected: the TSANet SLA tracks the first response only. Once a case is accepted, rejected, or moved to Information, breach detection stops |
-
-{% hint style="info" %}
-If you've set up the optional, externally-hosted **GitHub Actions SLA monitor**, its own setup and troubleshooting (repository secrets, the workflow file, authentication failures) live in the separate [GitHub Actions SLA Monitor (Optional)](github-actions-sla-monitor.md) guide, not here. It is not part of the core integration.
-{% endhint %}
 
 ### The ZIS connection / token problems
 
@@ -180,7 +176,6 @@ When something is wrong and you are not sure where to start, work through these 
 3. **Field IDs** — do the five custom field IDs in the app settings match the actual fields?
 4. **Webhook** — does TSANet have the correct inbound webhook URL, username, and password?
 5. **Triggers** — do tag-based triggers use **Current tags**?
-6. **Optional SLA monitor** — if you've set up the externally-hosted GitHub Actions SLA monitor, is its last run green? (See the separate guide for that job's own diagnostics.)
 
 ## Need Help
 

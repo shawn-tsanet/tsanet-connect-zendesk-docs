@@ -59,8 +59,8 @@ flow bundle in Step 3, and enter all five into the ZAF app settings in Step 4.
 
 ## The Five Steps at a Glance
 
-1. **Register Zendesk with ZIS.** Create the API token, OAuth client, and
-   integration container ZIS needs to manage itself.
+1. **Register Zendesk with ZIS.** Create the integration's OAuth client, the
+   ZIS OAuth client, and the integration container ZIS needs to manage itself.
 2. **Connect ZIS to TSANet.** Register the Entra OAuth client-credentials
    connection that lets ZIS call the TSANet API without handling
    authentication itself.
@@ -73,30 +73,48 @@ flow bundle in Step 3, and enter all five into the ZAF app settings in Step 4.
 
 Three pieces of one-time Zendesk-side setup.
 
-### 1a. Create a Zendesk API token
+### 1a. Create the integration's OAuth client + setup token
 
-Admin Center &gt; Apps and integrations &gt; APIs &gt; Zendesk API &gt; Add API
-token. Copy it immediately — you won't see it again. This authenticates the
-`curl` commands throughout this guide.
+Everything in this guide authenticates with a short-lived **setup token**
+minted from a confidential OAuth client. This same client later backs the
+`zendesk` connection in Step 3a, so you create it exactly once. No Zendesk API
+token is used anywhere — Zendesk is retiring API tokens (new accounts cannot
+create them after July 28, 2026; all tokens stop working April 30, 2027), and
+the integration neither stores nor requires one.
 
-{% hint style="warning" %}
-**Setup bootstrap only.** This token authenticates the one-time setup commands
-and is **not stored anywhere** — the integration's own Zendesk credential is
-the OAuth connection created in Step 3a, and you can delete this token once
-setup is complete. Zendesk is retiring API tokens for the Ticketing API:
-creation is blocked for new Zendesk accounts on **July 28, 2026** and for all
-accounts on **October 27, 2026**, and all existing tokens stop working on
-**April 30, 2027**. If your account can no longer create API tokens, contact
-membership@tsanet.org for the bootstrap alternative.
-{% endhint %}
+Sign in to Admin Center **as the dedicated service user** the integration
+should act as (tokens from this client act as that user), then go to
+**Apps and integrations &gt; APIs &gt; OAuth clients &gt; Add OAuth client**
+and fill in:
 
-> 📸 **Screenshot placeholder:** The Add API token screen in Admin Center.
+* **Client name:** `TSANet Connect Integration`
+* **Identifier:** `tsanet_zendesk`
+* **Client kind:** **Confidential** — required; the client_credentials grant
+  rejects public clients
+* **Redirect URLs:** `https://{your-subdomain}.zendesk.com` (placeholder — not used)
+
+Click **Save**, then copy the **Secret** field that appears — the full secret
+is shown **only once**. If you lose it, regenerating displays it truncated;
+delete and recreate the client instead.
+
+Now mint a setup token (about a 30-minute lifetime — re-run this if setup
+takes longer):
+
+```bash
+SETUP_TOKEN=$(curl -s -X POST "https://{your-subdomain}.zendesk.com/oauth/tokens" \
+  -H "Content-Type: application/json" \
+  -d '{"grant_type":"client_credentials","client_id":"tsanet_zendesk","client_secret":"YOUR_CLIENT_SECRET","scope":"read write"}' \
+  | jq -r '.access_token')
+```
+
+> 📸 **Screenshot placeholder:** The Add OAuth client screen in Admin Center,
+> with Client kind set to Confidential.
 
 ### 1b. Create a ZIS OAuth client
 
 ZIS needs its own OAuth client to issue the short-lived tokens it uses to
-manage its own connections and flows — a separate credential from the API
-token above.
+manage its own connections and flows — a separate client from the integration
+client above.
 
 Admin Center &gt; Apps and integrations &gt; APIs &gt; OAuth clients &gt; Add
 OAuth client. Fill in:
@@ -115,7 +133,7 @@ connections, the flow bundle, webhooks — will live in.
 ```bash
 curl -s -X POST \
   "https://{your-subdomain}.zendesk.com/api/services/zis/registry/tsanet_connect" \
-  -u "YOUR_EMAIL/token:YOUR_API_TOKEN" \
+  -H "Authorization: Bearer $SETUP_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"description": "TSANet Connect integration"}'
 ```
@@ -132,7 +150,7 @@ management call in Steps 2 and 3:
 ```bash
 ZIS_TOKEN=$(curl -s -X POST \
   "https://{your-subdomain}.zendesk.com/api/v2/oauth/tokens" \
-  -u "YOUR_EMAIL/token:YOUR_API_TOKEN" \
+  -H "Authorization: Bearer $SETUP_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"token":{"client_id":"YOUR_ZIS_CLIENT_ID","scopes":["read","write"]}}' \
   | jq -r '.token.full_token')
@@ -221,27 +239,10 @@ The bundle's Zendesk-side actions (creating and updating tickets) don't
 authenticate themselves — they need an **OAuth connection named `zendesk`**.
 It stores no long-lived secret in the connection: ZIS mints short-lived
 tokens from an OAuth client on your own instance and renews them itself.
-(Earlier revisions used a basic-auth connection holding an API token; that
-form dies with Zendesk's API-token retirement — see Step 1a.)
 
-First, create a **confidential** OAuth client for the integration. Run this
-as the dedicated service user the integration should act as — its tokens act
-as the user associated with the client:
-
-```bash
-curl -s -X POST "https://{your-subdomain}.zendesk.com/api/v2/oauth/clients.json" \
-  -u "YOUR_EMAIL/token:YOUR_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"client":{"name":"TSANet Connect Integration","identifier":"tsanet_zendesk","kind":"confidential"}}'
-```
-
-Copy `client.secret` from the response — the full secret is shown **only** at
-creation. `"kind":"confidential"` must be set **at creation**: the
-client_credentials grant rejects public clients, and changing the kind later
-regenerates the secret while only ever displaying it truncated (delete and
-recreate the client if that happens).
-
-Then register a ZIS OAuth client pointing at your **own** instance's token
+The client is the one you already created in **Step 1a** (`tsanet_zendesk`,
+confidential, owned by the dedicated service user) — the same identifier and
+secret. Register a ZIS OAuth client pointing at your **own** instance's token
 endpoint, and create the connection from it:
 
 ```bash
@@ -294,12 +295,18 @@ Open the downloaded JSON file and substitute:
 ```bash
 curl -s -X POST \
   "https://{your-subdomain}.zendesk.com/api/services/zis/registry/tsanet_connect/bundles" \
-  -u "YOUR_EMAIL/token:YOUR_API_TOKEN" -H "Content-Type: application/json" \
+  -u "YOUR_EMAIL:YOUR_PASSWORD" -H "Content-Type: application/json" \
   -d @tsanet_connect_bundle.json
 ```
 
-{% hint style="info" %}
-This call uses your Zendesk API token (Basic auth), not the ZIS bearer token.
+{% hint style="warning" %}
+**This is the one basic-auth exception in the whole install.** The bundles
+endpoint currently rejects OAuth outright (401 "Authorization failed due to
+OAuth being disabled for this API request", verified July 2026), so neither
+`$SETUP_TOKEN` nor `$ZIS_TOKEN` works here. Temporarily enable password access
+(Admin Center &gt; Apps and integrations &gt; APIs &gt; Zendesk API &gt;
+Settings &gt; Password access), run the upload with your admin email and
+password, then disable password access again.
 {% endhint %}
 
 ### 3d. Create the inbound webhook
@@ -452,7 +459,7 @@ Create a macro via the API by substituting your TSANet Action field ID for
 
 ```bash
 curl -X POST "https://{your-subdomain}.zendesk.com/api/v2/macros.json" \
-  -u "you@example.com/token:YOUR_API_TOKEN" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SETUP_TOKEN" -H "Content-Type: application/json" \
   -d '{"macro":{"title":"TSANet: Send partner-only note","actions":[{"field":"custom_fields_FIELD_ID","value":"tsanet_action_add_note"}]}}'
 ```
 
@@ -528,10 +535,12 @@ then update the app settings to use them.
 
 ## Authentication Summary
 
-There are five authentication contexts in this integration.
+There are six authentication contexts in this integration. None of them uses
+a Zendesk API token.
 
 | Context | Method | Where it is stored |
 | --- | --- | --- |
+| Setup commands (Steps 1c, and the macro call) | Short-lived OAuth setup token (`$SETUP_TOKEN`, client_credentials) | Minted per use from the integration's OAuth client — nothing stored. Exception: the Step 3c bundle upload uses password access, enabled just for that command |
 | ZIS management calls (Steps 1c to 3e) | ZIS OAuth bearer (`$ZIS_TOKEN`) | Used per-session, not stored in the app |
 | ZIS to TSANet API (runtime) | OAuth client credentials (Microsoft Entra) | ZIS connection — minted and renewed automatically |
 | ZIS to Zendesk API (runtime) | OAuth client credentials against your own instance (`zendesk` connection, scope `read tickets:write`) | ZIS connection, created in Step 3a — short-lived tokens, minted and renewed automatically |

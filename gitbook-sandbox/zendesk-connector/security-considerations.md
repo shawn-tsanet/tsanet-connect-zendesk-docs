@@ -12,15 +12,14 @@ It is written in two layers: a posture summary for security and IT reviewers, an
 an internal hardening section that is candid about known tradeoffs and the
 roadmap to close them.
 
-The integration has two moving parts, plus one optional helper:
+The integration has two moving parts:
 
 * **The ZAF sidebar app** runs inside Zendesk, in the support agent's browser.
 * **ZIS (Zendesk Integration Services)** runs server-side inside Zendesk's own
   infrastructure and handles inbound delivery from TSANet.
-* **An optional GitHub Actions job** (`sla-monitor`) runs on a schedule to flag
-  SLA breaches when no agent is online — an externally-hosted add-on, not part
-  of the core integration; see the
-  [GitHub Actions SLA Monitor (Optional)](github-actions-sla-monitor.md) guide.
+
+Nothing is hosted outside Zendesk and TSANet — there is no external server,
+scheduler, or third-party runner in the architecture.
 
 {% hint style="info" %}
 **Bottom line.** No data leaves Zendesk except what is required to collaborate
@@ -35,14 +34,13 @@ Zendesk's server-side secret store. See
 
 ## Architecture and Trust Boundaries
 
-There are four trust zones. Data crosses a boundary only at the arrows below.
+There are three trust zones. Data crosses a boundary only at the arrows below.
 
 | Zone | What runs there | Trust boundary |
 | --- | --- | --- |
 | **Agent browser** | The ZAF sidebar app (UI + background poller) | Cross-origin sandboxed iframe served by Zendesk |
 | **Zendesk infrastructure** | ZIS flows, connections, ticket data | Zendesk's hosted platform and secret store |
 | **TSANet Connect** | The TSANet API and partner routing | External party, reached over TLS |
-| **GitHub Actions (optional)** | The `sla-monitor` job | GitHub-hosted runner with encrypted secrets |
 
 The agent browser never talks to the partner directly. Outbound requests go to
 the TSANet API; inbound events arrive from TSANet into ZIS. The partner's systems
@@ -81,7 +79,6 @@ everything.
 | ZIS to TSANet API | OAuth 2.0 client credentials (Microsoft Entra). ZIS mints and renews its own short-lived tokens | The long-lived Entra client credential is stored **server-side** in the Zendesk ZIS connection store. There is no static token at rest. |
 | TSANet to ZIS (inbound) | HTTP Basic auth on every delivery, enforced by ZIS. TSANet additionally signs each delivery with an HMAC-SHA256 signature (`X-Hub-Signature-256`) | Per-subscription ingest credentials, held by TSANet for delivery and by ZIS for verification. |
 | ZIS to Zendesk | OAuth 2.0 client credentials against your **own** instance, scope-limited to `read tickets:write`. ZIS mints and renews its own short-lived tokens (about 30 minutes) | The OAuth client credential is stored **server-side** in the Zendesk ZIS connection store. There is no static token and no API token at rest. |
-| GitHub Actions (optional) | Zendesk OAuth client credentials (short-lived token minted per run) and TSANet API credentials | Encrypted GitHub Actions repository secrets. |
 
 {% hint style="info" %}
 **Credential handling, stated plainly.** The TSANet API password is stored as a
@@ -117,11 +114,14 @@ validated end to end on Beta.
 * **Secrets held server-side.** ZIS connection secrets (the Entra client
   credential and the Zendesk OAuth client credential) are stored inside Zendesk's
   hosted secret store and are not retrievable in plaintext through the API.
-* **No stored API token.** The integration stores no Zendesk API token anywhere.
-  An admin API token is used only transiently during initial setup and can be
-  deleted afterward. (Zendesk is retiring API tokens for the Ticketing API —
-  all tokens stop working on April 30, 2027 — so this is a compliance point as
-  well as a hardening one.)
+* **No API token, anywhere.** The integration neither stores nor uses a Zendesk
+  API token — setup commands authenticate with short-lived OAuth setup tokens
+  minted from the integration's confidential OAuth client, and the runtime
+  connection mints its own. (Zendesk is retiring API tokens for the Ticketing
+  API — all tokens stop working on April 30, 2027 — so this is a compliance
+  point as well as a hardening one.) The single exception is the one-time
+  flow-bundle upload, which currently rejects OAuth on Zendesk's side and uses
+  password access, enabled just for that command and disabled immediately after.
 
 ## Access Control and Least Privilege
 
@@ -155,15 +155,14 @@ validated end to end on Beta.
 * Use a **dedicated TSANet API service account** on your registered domain, never
   a personal login or a customer address.
 * **Rotate the TSANet API password** on a schedule. When you do, update the ZAF
-  app settings and (if you run the optional SLA monitor) the matching GitHub
-  Actions secret.
+  app settings.
 * **Restrict Zendesk administrator access.** Only administrators can view or
   change the app settings, so administrator accounts are the sensitive surface.
 * Keep the app on `BETA` only during setup and testing, and switch to
   `PRODUCTION` when you go live.
-* If you run the optional GitHub Actions job, treat its repository secrets like
-  any production credential and watch for failed runs, which can indicate an
-  expired secret.
+* **Leave password access disabled.** It is needed only for the one-time
+  flow-bundle upload during installation; turn it on for that command and back
+  off immediately after.
 
 ## Known Considerations and Hardening
 
@@ -206,11 +205,12 @@ and recreate the connection as part of the rotation.
 Zendesk is removing API tokens as an authentication method for the Ticketing
 API: creation is blocked for new accounts on July 28, 2026 and for all accounts
 on October 27, 2026, and all existing tokens stop working on April 30, 2027.
-The integration is ahead of this: the `zendesk` ZIS connection uses OAuth
-client credentials (no stored token), and the optional SLA monitor mints
-short-lived OAuth tokens per run. The only remaining API-token use is the
-transient setup bootstrap; accounts that can no longer create tokens can
-bootstrap with an OAuth token instead (contact membership@tsanet.org).
+The integration is ahead of this: no API token is used anywhere. The `zendesk`
+ZIS connection uses OAuth client credentials (no stored token), and setup
+commands authenticate with short-lived OAuth setup tokens minted from the
+integration's confidential OAuth client. The one temporary exception is the
+flow-bundle upload, which currently rejects OAuth on Zendesk's side and uses
+password access for that single command.
 
 ## Questions
 
