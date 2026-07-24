@@ -123,6 +123,31 @@ validated end to end on Beta.
   flow-bundle upload, which currently rejects OAuth on Zendesk's side and uses
   password access, enabled just for that command and disabled immediately after.
 
+## Data Retention and the PII Lifecycle
+
+Cross-org case content (partner company names, submitter and engineer contact
+details, problem narratives) mirrors into ticket subjects, descriptions,
+comments, and custom fields, and persists until the member removes it. Three
+facts govern the lifecycle:
+
+* **Three-copy model.** Every collaboration exists as your ticket, the TSANet
+  platform case, and the partner's CRM case, each under a different
+  controller. Anything you delete or scrub applies to your copy only; the
+  Connect API's notes are append-only, so no erasure propagates cross-org.
+  Cross-org erasure is controller-to-controller coordination through TSANet.
+* **Selectors are built in.** Every ticket the integration touches is tagged
+  `tsanet_inbound` or `tsanet_outbound`; retention tooling keys on those tags.
+* **Two supported removal modes.** Whole-ticket deletion (native deletion
+  schedules, which act on tickets closed 120+ days; tag-scoped schedules
+  require the ADPP add-on, otherwise use a scheduled API sweep) or selective
+  scrubbing that preserves the case record (the redaction API permanently
+  removes comment and attachment content; note that cleared field values
+  remain in ticket audit history, which only deletion removes).
+
+The retention window is the member's policy decision as data controller. The
+full data map and both recipes: [PII Retention and Data
+Handling](https://github.com/tsanetgit/Zendesk_App/blob/main/PII_Retention_and_Data_Handling.md).
+
 ## Access Control and Least Privilege
 
 * **Dedicated service account.** The TSANet API credential is a service account
@@ -145,7 +170,7 @@ validated end to end on Beta.
 | --- | --- |
 | App distribution | Private app, ZIP install only. No public Marketplace listing. |
 | Outbound exfiltration | `domainWhitelist` limits egress to the two TSANet hosts. |
-| Inbound spoofing | Basic auth on every delivery, plus an HMAC-SHA256 signature available for verification. |
+| Inbound spoofing | Basic auth (`callbackAuth`) on every delivery, enforced by ZIS; two independent rotatable secrets (capability-token ingest URL + Basic credential); event content is pulled from the TSANet API by token, so forged deliveries cannot inject case content. |
 | Unauthorized forwarding | Fail-closed agent/admin author guard. |
 | Credential theft in transit | TLS on every hop; token held in memory only. |
 | Stale or leaked tokens | Short-lived tokens; ZIS re-mints its own; the ZAF JWT expires in about 50 minutes. |
@@ -184,21 +209,33 @@ password readable in the app's browser context. This was hardened in ZAF app
 **v1.0.42** (tracked as issue #49 in `tsanetgit/Zendesk_App`) and validated end to
 end on Beta.
 
-### Inbound signature verification
+### Inbound signature verification (platform-gated; compensating controls in place)
 
-Inbound deliveries are authenticated by HTTP Basic auth, which ZIS enforces.
-TSANet additionally signs each delivery with an HMAC-SHA256 signature. Confirm
-that the receiving flow verifies that signature against the per-subscription
-secret, so authenticity does not rest on Basic auth alone.
+TSANet signs each delivery with an HMAC-SHA256 signature, but the Zendesk
+Integration Services platform cannot verify it: ZIS inbound webhooks support
+Basic auth only, and flows receive parsed events with no access to the raw
+body or headers. Authenticity therefore rests on two independent rotatable
+secrets (the capability-token ingest URL and the Basic `callbackAuth`
+credential), with blast radius bounded because the flow pulls case content
+from the TSANet API by token rather than trusting the delivery body. Members
+whose posture requires signature verification can front the ingest URL with a
+small verification proxy; the pattern is documented in
+[https://github.com/tsanetgit/Zendesk_App/issues/90](https://github.com/tsanetgit/Zendesk_App/issues/90), which records the full
+disposition and evidence.
 
-### Secret rotation
+### Secret rotation (webhook credential rotation shipped)
 
-The Entra client credential, the ingest credentials, and the Zendesk OAuth
-client secret should each be rotated on a defined schedule. Rotating the Entra
-client credential is the highest-value rotation because it is the longest-lived
-secret in the system. Note that regenerating a Zendesk OAuth client secret
-invalidates the ZIS connection built on it — re-register the ZIS OAuth client
-and recreate the connection as part of the rotation.
+The ingest (webhook Basic) credential now has a scripted make-before-break
+rotation with no delivery downtime and true revocation of the old credential:
+see the [rotation runbook](https://github.com/tsanetgit/Zendesk_App/blob/main/ZIS_Rotation_Runbook.md)
+and `scripts/rotate-inbound-webhook.py`. Rotating it on a schedule (quarterly
+is a reasonable default) is the primary control on the inbound pipe. The Entra
+client credential and the Zendesk OAuth client secret should also be rotated
+on a defined schedule; scripted procedures for both are tracked in
+[https://github.com/tsanetgit/Zendesk_App/issues/91](https://github.com/tsanetgit/Zendesk_App/issues/91). Note that regenerating a
+Zendesk OAuth client secret invalidates the ZIS connection built on it —
+re-register the ZIS OAuth client and recreate the connection as part of the
+rotation.
 
 ### Zendesk API token retirement (migration complete)
 
