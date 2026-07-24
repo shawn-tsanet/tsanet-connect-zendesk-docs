@@ -180,9 +180,18 @@ curl -s -X POST \
     "client_id": "YOUR_ENTRA_CLIENT_ID",
     "client_secret": "YOUR_ENTRA_CLIENT_SECRET",
     "token_url": "https://login.microsoftonline.com/TENANT_ID/oauth2/v2.0/token",
-    "default_scopes": "api://AUDIENCE/.default"
+    "default_scopes": "AUDIENCE/.default"
   }'
 ```
+
+{% hint style="warning" %}
+**Scope format.** Use the bare Connect-app client ID GUID in `default_scopes`
+(i.e. `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx/.default`, using the `AUDIENCE`
+value TSANet gives you). Do **not** prefix it with `api://` — that form fails
+with `AADSTS500011: resource principal not found`, because the Connect app's
+Application ID URI is not published. The same applies when testing the token
+request in Postman or curl.
+{% endhint %}
 
 {% hint style="warning" %}
 Paste the client secret **verbatim**. Entra secrets can begin with punctuation,

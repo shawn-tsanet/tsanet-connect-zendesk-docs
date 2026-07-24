@@ -1,7 +1,7 @@
 ---
 name: tsanet-connect
-description: Expert implementation guide for TSANet Connect integrations with Zendesk. Covers the ZAF sidebar app, ZIS OAuth client-credentials (Microsoft Entra) auth, inbound push delivery via callbackAuth, the optional GitHub Actions SLA monitor, Zendesk custom fields, and all known API quirks and gotchas discovered through production implementation. (The legacy ZIS bearer-token connection and its GitHub Actions refresh job are retired and retained only for reference.)
-trigger: Use when the user is implementing TSANet Connect with Zendesk, building a ZAF (Zendesk Apps Framework) sidebar app for TSANet, setting up ZIS (Zendesk Integration Services) for TSANet, working with the TSANet REST API, configuring GitHub Actions for TSANet token refresh or SLA monitoring, creating Zendesk custom fields for TSANet data, debugging TSANet collaboration case flows, or asks about TSANet Connect, TSANet API, ZAF app, ZIS bearer token, SLA breach detection, or collaboration case lifecycle. Also trigger on "tsanet", "collaboration case", "TSANet token", "respondBy", "ZIS bearer", or "ZAF sidebar" in any implementation context.
+description: Expert implementation guide for TSANet Connect integrations with Zendesk. Covers the ZAF sidebar app, ZIS OAuth client-credentials (Microsoft Entra) auth, inbound push delivery via callbackAuth, Zendesk custom fields, and all known API quirks and gotchas discovered through production implementation. (The legacy ZIS bearer-token connection and its GitHub Actions refresh job are retired and retained only for reference.)
+trigger: Use when the user is implementing TSANet Connect with Zendesk, building a ZAF (Zendesk Apps Framework) sidebar app for TSANet, setting up ZIS (Zendesk Integration Services) for TSANet, working with the TSANet REST API, creating Zendesk custom fields for TSANet data, debugging TSANet collaboration case flows, or asks about TSANet Connect, TSANet API, ZAF app, ZIS bearer token, SLA breach detection, or collaboration case lifecycle. Also trigger on "tsanet", "collaboration case", "TSANet token", "respondBy", "ZIS bearer", or "ZAF sidebar" in any implementation context.
 ---
 
 # TSANet Connect — Zendesk Integration Expert
@@ -35,8 +35,6 @@ A complete TSANet Connect + Zendesk integration has two layers:
 └─────────────────────────────────────────────────────────┘
 ```
 
-An optional, externally-hosted GitHub Actions workflow can add SLA breach alerting on top of this — it is not part of the core integration, needs its own GitHub repository/Actions/secrets, and is documented separately in `GitHub_Actions_SLA_Monitor.md`.
-
 **What ZIS flows are NOT used for:**
 ZIS scheduled polling (`flow_poll_tsanet`) is architecturally broken — ZIS flows cannot call ZIS management endpoints (circular OAuth scope). What is retired is ZIS-based token *refresh*, replaced by the OAuth client-credentials connection (see ZIS section). ZIS now CAN receive an inbound TSANet push via a generic inbound webhook secured by the `callbackAuth` capability (API v3.1.0); previously this was blocked because TSANet sent no `Authorization` header on webhooks. Do not attempt to rebuild ZIS-based polling or ZIS-based token refresh flows.
 
@@ -68,7 +66,7 @@ Authorization: Bearer <accessToken>
 ### Authentication — OAuth 2.0 client credentials (Microsoft Entra, live / default)
 This is now the **live, default** auth scheme for server-to-server integrations, validated end to end on TSANet's Beta environment (issue #1 closed). Inbound webhook delivery (TSANet -> ZIS) uses the `callbackAuth` capability, delivered in API v3.1.0 and validated on Beta (issue #2 closed).
 
-- Obtain a token from Microsoft Entra via the **client credentials** grant: `POST https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/token` with `grant_type=client_credentials`, your TSANet-issued `client_id`/`client_secret`, and `scope=api://{audience}/.default` (TSANet provides the audience value). Pass the result as a Bearer token.
+- Obtain a token from Microsoft Entra via the **client credentials** grant: `POST https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/token` with `grant_type=client_credentials`, your TSANet-issued `client_id`/`client_secret`, and `scope={audience}/.default` — the **bare** audience GUID (TSANet provides the audience value). Do **not** use `api://{audience}/.default`: it fails with `AADSTS500011` (resource principal not found) because the Connect app registration does not publish an Application ID URI. Pass the result as a Bearer token.
 - **Service principal provisioning is required.** The API accepts an app-only token only if your service principal's object ID has been provisioned by TSANet; provisioning is also what maps your tokens to your member company. Contact TSANet with your service principal OID to be onboarded.
 - The API accepts the default v1-format Entra token (bare-GUID `aud` claim) — no `requestedAccessTokenVersion` change is needed on the client app registration.
 - Tokens live ~60 minutes, but unlike the legacy `/v1/login` JWT, the **caller re-mints automatically from the long-lived client credential** — there is no static token to refresh. This is what retires the ZIS bearer-token refresh workaround (see ZIS section).
@@ -96,6 +94,24 @@ This is now the **live, default** auth scheme for server-to-server integrations,
 | `POST` | `/v1/collaboration-requests/{token}/closure` | Close the case |
 | `POST` | `/v1/collaboration-requests/{token}/notes` | Post a note |
 | `GET` | `/v1/collaboration-requests/{token}/notes` | Get all notes |
+
+### Error Handling — Two Response Modes
+The `/v1` API has two error-response modes, selected by the request's `Accept` header. This is permanent, documented behavior (`tsanetgit/Connect-API-Code#122`, confirmed by TSANet 2026-07-09) — not a bug to work around.
+
+- **Legacy (default).** No `Accept` header, or `Accept: application/json` only → most business-rule, validation, and authorization rejections return **HTTP 500** with a `{"message": "..."}` body. This is locked in for backward compatibility with existing clients and will not change.
+- **RFC 7807 (opt-in).** Send `Accept: application/json, application/problem+json` → the same rejections return their documented status code (400/401/403/404/409/422) with an RFC 7807 body: `{type, title, status, detail, instance}`.
+
+**Recommended for all new integrations:**
+```
+Accept: application/json, application/problem+json
+```
+List `application/json` first — with `application/problem+json` alone, successful 200 responses also come back labeled `Content-Type: application/problem+json` (verified live on Beta), which can confuse content-type-keyed consumers. Branch on status code and read the error message from `detail`, falling back to `title`.
+
+Example — `GET /v1/collaboration-requests/{unknownToken}`:
+- Without the header → `500 {"message": "Case with token ... not found."}`
+- With the header → `404 {"type": "...", "title": "Not Found", "status": 404, "detail": "Case with token ... not found.", "instance": "/v1/collaboration-requests/..."}`
+
+The ZAF app and ZIS bundle both send the dual header as of v1.0.44.
 
 ### Case Lifecycle
 ```
@@ -583,7 +599,7 @@ ZIS custom integrations **do not appear in Admin Center UI**. Verify via API:
 curl -s -u "EMAIL/token:API_TOKEN" \
   "https://SUBDOMAIN.zendesk.com/api/services/zis/integrations/tsanet_connect/connections"
 ```
-Note: ZIS management endpoints (`/api/services/zis/`) **always return 404 with a standard API token**. They require a ZIS OAuth token (obtained via the OAuth2 flow with your ZIS OAuth client). This is by design — it's not an error.
+Note: most ZIS management endpoints reject a standard API token (401/403/404 depending on the endpoint — e.g. `connections/all` returns 403 "API token is not supported"). They require a ZIS OAuth token minted under your ZIS OAuth client. Registry create additionally accepts admin basic auth and admin OAuth bearers (client_credentials); bundle upload accepts ONLY basic auth — it rejects all OAuth. This is by design — it's not an error.
 
 ---
 
@@ -603,9 +619,10 @@ curl -X POST \
     "client_id": "YOUR_ENTRA_CLIENT_ID",
     "client_secret": "YOUR_ENTRA_CLIENT_SECRET",
     "token_url": "https://login.microsoftonline.com/TENANT_ID/oauth2/v2.0/token",
-    "default_scopes": "api://AUDIENCE/.default"
+    "default_scopes": "AUDIENCE/.default"
   }'
 ```
+`default_scopes` is the **bare** audience GUID plus `/.default` — the `api://` prefix fails with `AADSTS500011` (see the Entra authentication section).
 
 ### Step 2 — Create the connection (no browser / admin-consent step)
 ```bash
@@ -626,11 +643,16 @@ The response contains a `redirect_url` with a `verification_code`. **GET that `a
 
 ---
 
-## GitHub Actions SLA Monitor (Optional, External)
+## Zendesk-side `zendesk` Connection (OAuth — replaces the API-token basic-auth form)
 
-An optional, externally-hosted GitHub Actions workflow (`sla-monitor`) can tag a Zendesk ticket when its TSANet acknowledgment SLA has passed. It is **not** part of the core integration — it needs its own GitHub repository, GitHub Actions, and stored secrets — so the full setup, the workflow YAML, required secrets, and troubleshooting live in the standalone `GitHub_Actions_SLA_Monitor.md` document, not here. Point a member there if they ask for SLA breach alerting inside Zendesk.
+The bundle's seven Zendesk-side actions (ticket create/search/update/read + the three finish actions) authenticate through a ZIS connection named `zendesk`. This was historically a `basic_auth` connection storing `email/token` + a Zendesk API token. **Zendesk is retiring API tokens for the Ticketing API** (creation blocked for new accounts 2026-07-28 and all accounts 2026-10-27; all tokens stop working 2027-04-30), so the connection is now an **`oauth`-type connection running the client_credentials grant against the member's own instance** — the same pattern as the Entra connection above, with `token_url` pointed at `https://SUBDOMAIN.zendesk.com/oauth/tokens`. Validated live 2026-07-07, including automatic re-mint of an expired token.
 
-The legacy `refresh-token` job (which kept a static bearer connection alive) is retired along with that connection; do not build it for a new installation — see **ZIS OAuth Client-Credentials Connection** above.
+Key facts (full recipe in `zis/README.md` Prerequisites 2a–2c):
+- The backing Zendesk OAuth client **must be `kind: "confidential"` at creation** — the grant rejects public clients with `unauthorized_client`, and changing `kind` later regenerates the secret while only ever displaying it truncated. Create the client as the dedicated service user; client_credentials tokens act as the client's associated user.
+- **Minimal scope is `read tickets:write`.** `tickets:read` alone breaks `SearchTicket` — `/api/v2/search.json` returns 403 under it, and there is no `search:read` scope.
+- Tokens from clients created on or after 2026-04-30 **expire in 30 minutes**, so a static `bearer_token` connection is not viable; only the auto-renewing `oauth` connection type works.
+- **Migration on an existing install:** connection names are unique across types — delete the old `basic_auth` connection named `zendesk`, then create the `oauth` one under the same name. Zero bundle changes. Deleting a ZIS OAuth client registration cascade-deletes its connections.
+- **Setup bootstrap is tokenless too** (validated 2026-07-07): the same confidential client's client_credentials bearer is accepted on ZIS registry create and on `POST /api/v2/oauth/tokens` (minting the ZIS management token). **One exception: bundle upload** — `POST /registry/{integration}/bundles` rejects ALL OAuth (401 "Authorization failed due to OAuth being disabled for this API request"); use email:password basic auth with the password-access toggle enabled temporarily.
 
 ---
 
@@ -697,7 +719,7 @@ Create in Admin Center → Objects and rules → Business rules → Triggers:
 - **Tag POST is additive:** `POST /api/v2/tickets/{id}/tags.json` adds to existing tags. Use this — don't PUT (which replaces).
 - **Ticket comments via PUT:** to post an internal comment programmatically: `PUT /api/v2/tickets/{id}.json` with `ticket.comment.public: false`. Do not use the Comments endpoint — it doesn't support the internal flag the same way.
 - **Views API custom columns:** silently ignored for custom fields. Manual configuration required.
-- **ZIS management endpoints:** always return 404 with standard API tokens. Require ZIS OAuth scope. This is expected behavior, not a bug.
+- **ZIS management endpoints:** reject standard API tokens (401/403/404 by endpoint); require a ZIS OAuth token. Registry create + bundle upload are the exceptions that accept admin basic auth. Expected behavior, not a bug.
 
 ---
 
@@ -710,6 +732,7 @@ Create in Admin Center → Objects and rules → Business rules → Triggers:
 - **Incremental poll pattern:** store `updatedAt` of the last synced record; pass as `updatedAfter` on next poll. This matches the Salesforce connector's 15-minute sync pattern.
 - **SELECT field `options` are newline-delimited** — the process-form `customFields[].options` string separates choices with `\r\n`, not commas, and `selections[]` is often empty. Split on newlines. See *Process Form Rendering*.
 - **`adminNote` is HTML to render, not strip** — the form's admin note ("Partner instructions") is authored HTML (links); sanitize and render it. Only note `summary`/`description` should be stripped to plain text.
+- **All `/v1` error responses default to HTTP 500** for business-rule/authz/validation rejections (`{"message"}` body) — permanent, by design, not a bug. Send `Accept: application/json, application/problem+json` for the documented 4xx status + RFC 7807 body. See *Error Handling* above.
 
 ---
 
@@ -732,7 +755,6 @@ Create in Admin Center → Objects and rules → Business rules → Triggers:
 - [ ] Deploy via Admin Center manual upload (API upload is broken)
 - [ ] Create `TSANet SLA Breach — Notify Assignee` Zendesk trigger
 - [ ] Create TSANet Active Collaborations view; add custom field columns manually
-- [ ] Optional: set up the externally-hosted GitHub Actions SLA monitor (`GitHub_Actions_SLA_Monitor.md`) — not required for the integration to work
 
 ---
 
