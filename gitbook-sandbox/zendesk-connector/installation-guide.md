@@ -488,8 +488,36 @@ listing.
 * Visit the TSANet Connect releases page to get the latest version:
   [https://github.com/tsanetgit/Zendesk\_App/releases](https://github.com/tsanetgit/Zendesk_App/releases)
 * Download the `tsanet-connect-vX.Y.Z.zip` asset from the latest release.
+* Verify the download before installing it (see below).
 * In Admin Center &gt; Apps and integrations &gt; Zendesk Support apps, choose
   to upload a private app and select the ZIP.
+
+### Verify the package before you upload it
+
+Every release carries a build-provenance attestation and a SHA-256 checksum,
+both published on the same release page, so you can confirm the ZIP is the one
+TSANet built rather than a file altered in transit or substituted elsewhere.
+
+{% code overflow="wrap" %}
+```bash
+# Provenance (requires the GitHub CLI)
+gh attestation verify tsanet-connect-v<version>.zip --repo tsanetgit/Zendesk_App
+
+# Or checksum only — run where the ZIP and checksums.txt both sit
+shasum -a 256 -c checksums.txt
+```
+{% endcode %}
+
+Expect a line confirming the attestation was verified against
+`tsanetgit/Zendesk_App`, or `tsanet-connect-v<version>.zip: OK` from the
+checksum check.
+
+{% hint style="danger" %}
+If verification fails, do not install the package. A failure means the file
+does not match what TSANet published. Re-download it from the release page and
+try again; if it still fails, contact membership@tsanet.org before proceeding.
+A mismatch is worth reporting even if a re-download then succeeds.
+{% endhint %}
 
 > 📸 **Screenshot placeholder:** Uploading the private app ZIP in Admin Center
 > &gt; Apps and integrations &gt; Zendesk Support apps.
