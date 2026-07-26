@@ -148,6 +148,44 @@ The retention window is the member's policy decision as data controller. The
 full data map and both recipes: [PII Retention and Data
 Handling](https://github.com/tsanetgit/Zendesk_App/blob/main/PII_Retention_and_Data_Handling.md).
 
+## How the App Package Reaches You
+
+The connector ships as a ZIP that you upload into your own Zendesk instance, so
+the integrity of that file is a shared concern: TSANet controls how it is
+built and published, and you control what you install.
+
+On the publishing side, the release pipeline builds only from a tagged commit
+with no separate build step, so the package cannot diverge from the source it
+claims to come from. It runs with a least-privilege token, pins its build
+actions to exact commit revisions, and publishes only after an explicit human
+approval. Each release carries a **build-provenance attestation** and a
+**SHA-256 checksum**.
+
+On your side, those two artifacts let you confirm that the ZIP you downloaded
+is the one TSANet published, rather than a file altered in transit or
+substituted somewhere along the way:
+
+{% code overflow="wrap" %}
+```bash
+# Provenance (requires the GitHub CLI)
+gh attestation verify tsanet-connect-v<version>.zip --repo tsanetgit/Zendesk_App
+
+# Or checksum only — run where the ZIP and checksums.txt both sit
+shasum -a 256 -c checksums.txt
+```
+{% endcode %}
+
+{% hint style="danger" %}
+If verification fails, do not install the package, and contact
+membership@tsanet.org. A failure means the file does not match what TSANet
+published. This is worth reporting even if a later re-download verifies
+cleanly.
+{% endhint %}
+
+Step-by-step instructions sit in the [Installation
+Guide](installation-guide.md); the commands are repeated here because
+verification is a security control rather than an installation detail.
+
 ## Access Control and Least Privilege
 
 * **Dedicated service account.** The TSANet API credential is a service account
@@ -168,7 +206,7 @@ Handling](https://github.com/tsanetgit/Zendesk_App/blob/main/PII_Retention_and_D
 
 | Surface | Control |
 | --- | --- |
-| App distribution | Private app, ZIP install only. No public Marketplace listing. |
+| App distribution and tampering | Private app, ZIP install only, no public Marketplace listing. The release pipeline runs least-privilege, pins its actions to commit SHAs, and publishes only after a required human approval; every package ships with a build-provenance attestation and a SHA-256 checksum that members verify before installing. |
 | Outbound exfiltration | `domainWhitelist` limits egress to the two TSANet hosts. |
 | Inbound spoofing | Basic auth (`callbackAuth`) on every delivery, enforced by ZIS; two independent rotatable secrets (capability-token ingest URL + Basic credential); event content is pulled from the TSANet API by token, so forged deliveries cannot inject case content. |
 | Unauthorized forwarding | Fail-closed agent/admin author guard. |
@@ -177,6 +215,9 @@ Handling](https://github.com/tsanetgit/Zendesk_App/blob/main/PII_Retention_and_D
 
 ## Operational Security Guidance for Members
 
+* **Verify each package before installing it.** Check the provenance
+  attestation or the checksum on every install and upgrade, not only the first
+  one. See *How the App Package Reaches You* above.
 * Use a **dedicated TSANet API service account** on your registered domain, never
   a personal login or a customer address.
 * **Rotate the TSANet API password** on a schedule. When you do, update the ZAF
