@@ -304,7 +304,7 @@ deploy, and to know what to look at if a flow later misbehaves.
 
 ### 3c. Deploy the bundle — in the TSANet Connect app
 
-**Requires TSANet Connect app v1.0.50 or later.** Update the app first if the
+**Requires TSANet Connect app v1.0.51 or later.** Update the app first if the
 screen below is missing.
 
 1. In Zendesk Support, open **TSANet Connect** from the left nav bar.
