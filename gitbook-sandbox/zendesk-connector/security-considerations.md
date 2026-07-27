@@ -119,9 +119,10 @@ validated end to end on Beta.
   minted from the integration's confidential OAuth client, and the runtime
   connection mints its own. (Zendesk is retiring API tokens for the Ticketing
   API — all tokens stop working on April 30, 2027 — so this is a compliance
-  point as well as a hardening one.) The single exception is the one-time
-  flow-bundle upload, which currently rejects OAuth on Zendesk's side and uses
-  password access, enabled just for that command and disabled immediately after.
+  point as well as a hardening one.) The one-time flow-bundle upload is the only
+  call that rejects OAuth on Zendesk's side; it runs inside the TSANet Connect
+  app on the installing admin's own session, so it needs no API token, no
+  password access, and no long-lived credential of any kind.
 
 ## Data Retention and the PII Lifecycle
 
@@ -226,9 +227,10 @@ verification is a security control rather than an installation detail.
   change the app settings, so administrator accounts are the sensitive surface.
 * Keep the app on `BETA` only during setup and testing, and switch to
   `PRODUCTION` when you go live.
-* **Leave password access disabled.** It is needed only for the one-time
-  flow-bundle upload during installation; turn it on for that command and back
-  off immediately after.
+* **Leave password access disabled.** Nothing in this integration needs it,
+  including the flow-bundle upload, which runs on the installing admin's session
+  inside the app. If a procedure ever asks you to enable password access for
+  TSANet Connect, it is out of date.
 
 ## Known Considerations and Hardening
 
@@ -286,9 +288,18 @@ on October 27, 2026, and all existing tokens stop working on April 30, 2027.
 The integration is ahead of this: no API token is used anywhere. The `zendesk`
 ZIS connection uses OAuth client credentials (no stored token), and setup
 commands authenticate with short-lived OAuth setup tokens minted from the
-integration's confidential OAuth client. The one temporary exception is the
-flow-bundle upload, which currently rejects OAuth on Zendesk's side and uses
-password access for that single command.
+integration's confidential OAuth client. The flow-bundle upload is the one call
+Zendesk refuses OAuth on, and it is handled without a token at all: the TSANet
+Connect app performs it on the installing administrator's own session. Because
+the session is the credential, it lasts exactly as long as the admin is signed
+in, there is nothing to store, and nothing to rotate or revoke afterwards.
+
+This also means the upload inherits the administrator's own privileges rather
+than holding standing ones. Zendesk documents the ZIS registry endpoints as
+admin-only, and the app additionally checks the signed-in user's role before
+enabling the deploy button — but note that the in-app check is a usability
+guard, not the security boundary. The boundary is Zendesk's own server-side
+authorization on the endpoint.
 
 ## Questions
 

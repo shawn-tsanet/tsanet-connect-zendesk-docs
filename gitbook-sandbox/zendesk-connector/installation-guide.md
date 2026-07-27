@@ -288,34 +288,43 @@ unique across types, so delete the old basic-auth `zendesk` connection first,
 then create this one under the same name — the bundle needs no changes.
 {% endhint %}
 
-### 3b. Edit the bundle before uploading
+### 3b. Check your per-instance values
 
-Open the downloaded JSON file and substitute:
+You do not edit the bundle JSON. The TSANet Connect app fills these in from its
+own app settings when you deploy, and refuses to upload if any of them is still
+a placeholder. Use this table to confirm the app's settings are right before you
+deploy, and to know what to look at if a flow later misbehaves.
 
 | What | Where | Note |
 | --- | --- | --- |
 | Custom field IDs | ticket-create/search/update actions | The **TSANet Token / Status / Partner / Respond By** field IDs from "Before You Start" |
-| API host | every TSANet API action | Ships pointed at Production (`connect2.tsanet.org`) — use `connect2.tsanet.net` for Beta. Substitute **all** occurrences, not just the first, or some calls hit the wrong environment |
+| API host | every TSANet API action | Ships pointed at Production (`connect2.tsanet.org`) — Beta is `connect2.tsanet.net`. It appears in **all** the TSANet API actions, not just the first, and they move together |
 | `engineerEmail` | the Accept action | Your TSANet API user's email (from "Before You Start"). It must be on your member-registered domain — TSANet's Accept endpoint rejects any other domain |
-| OAuth connection name | every TSANet API action | Ships as `tsanet_oauth`. Only change this if you named the Step 2 connection something else |
+| OAuth connection name | every TSANet API action | Ships as `tsanet_oauth`. This only differs if you named the Step 2 connection something else |
 
-### 3c. Upload the bundle
+### 3c. Deploy the bundle — in the TSANet Connect app
 
-```bash
-curl -s -X POST \
-  "https://{your-subdomain}.zendesk.com/api/services/zis/registry/tsanet_connect/bundles" \
-  -u "YOUR_EMAIL:YOUR_PASSWORD" -H "Content-Type: application/json" \
-  -d @tsanet_connect_bundle.json
-```
+**Requires TSANet Connect app v1.0.50 or later.** Update the app first if the
+screen below is missing.
 
-{% hint style="warning" %}
-**This is the one basic-auth exception in the whole install.** The bundles
-endpoint currently rejects OAuth outright (401 "Authorization failed due to
-OAuth being disabled for this API request", verified July 2026), so neither
-`$SETUP_TOKEN` nor `$ZIS_TOKEN` works here. Temporarily enable password access
-(Admin Center &gt; Apps and integrations &gt; APIs &gt; Zendesk API &gt;
-Settings &gt; Password access), run the upload with your admin email and
-password, then disable password access again.
+1. In Zendesk Support, open **TSANet Connect** from the left nav bar.
+2. Check the **Pre-flight** results. All three must pass before the button enables.
+3. Click **Deploy bundle**.
+
+The app substitutes your per-instance values, uploads the bundle, installs each
+job spec, then reads the registry back so you can see what is actually installed.
+
+{% hint style="info" %}
+**Why the app and not a curl command.** The bundles endpoint rejects OAuth
+outright (401 "Authorization failed due to OAuth being disabled for this API
+request", verified July 2026), so neither `$SETUP_TOKEN` nor `$ZIS_TOKEN` works
+on it. The only credentials it accepts are a Zendesk API token and your own
+signed-in admin session. Zendesk is withdrawing API tokens — none for accounts
+created on or after **28 July 2026**, none for any account after **27 October
+2026**, and all existing tokens stop working on **30 April 2027** — and password
+access was removed from remaining accounts starting January 2026. The app runs
+on your admin session, so there is no credential for you to create, store, or
+rotate for this step.
 {% endhint %}
 
 ### 3d. Create the inbound webhook
@@ -432,18 +441,15 @@ Note the Field ID of each, shown in the URL when you open the field.
 
 ### Wire the two field IDs into the bundle
 
-Substitute both field IDs into the bundle JSON alongside the Step 3b
-substitutions, then re-upload it (Step 3c) and reinstall **all three** job
-specs — `jobspec_handle_ping`, `jobspec_forward_comment` (if deployed), and:
+Enter both field IDs in the TSANet Connect app's settings, alongside the other
+per-instance values from Step 3b, then run **Deploy bundle** again (Step 3c).
+The app re-uploads with the new IDs and reinstalls **every** job spec, which
+matters here: uploading a bundle orphans the specs installed from the previous
+one, so a spec that is not reinstalled stays dead.
 
-```bash
-curl -s -X POST \
-  "https://{your-subdomain}.zendesk.com/api/services/zis/registry/job_specs/install?job_spec_name=zis:tsanet_connect:job_spec:jobspec_field_action" \
-  -H "Authorization: Bearer $ZIS_TOKEN"
-```
-
-If you're setting this up for the first time together with Step 3, just make
-these substitutions before your first upload and skip the re-upload.
+If you're setting this up for the first time together with Step 3, just enter
+these two IDs in the app settings before your first deploy — there is nothing to
+redo.
 
 ### Create the optional macros
 
@@ -572,12 +578,13 @@ then update the app settings to use them.
 
 ## Authentication Summary
 
-There are six authentication contexts in this integration. None of them uses
+There are seven authentication contexts in this integration. None of them uses
 a Zendesk API token.
 
 | Context | Method | Where it is stored |
 | --- | --- | --- |
-| Setup commands (Steps 1c, and the macro call) | Short-lived OAuth setup token (`$SETUP_TOKEN`, client_credentials) | Minted per use from the integration's OAuth client — nothing stored. Exception: the Step 3c bundle upload uses password access, enabled just for that command |
+| Setup commands (Steps 1c, and the macro call) | Short-lived OAuth setup token (`$SETUP_TOKEN`, client_credentials) | Minted per use from the integration's OAuth client — nothing stored |
+| Bundle deploy (Step 3c) | Your own signed-in admin session, via the TSANet Connect app | Nothing stored — the app inherits the session. This endpoint refuses OAuth, which is why it runs in the app rather than as a setup command |
 | ZIS management calls (Steps 1c to 3e) | ZIS OAuth bearer (`$ZIS_TOKEN`) | Used per-session, not stored in the app |
 | ZIS to TSANet API (runtime) | OAuth client credentials (Microsoft Entra) | ZIS connection — minted and renewed automatically |
 | ZIS to Zendesk API (runtime) | OAuth client credentials against your own instance (`zendesk` connection, scope `read tickets:write`) | ZIS connection, created in Step 3a — short-lived tokens, minted and renewed automatically |
