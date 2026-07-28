@@ -301,6 +301,16 @@ enabling the deploy button — but note that the in-app check is a usability
 guard, not the security boundary. The boundary is Zendesk's own server-side
 authorization on the endpoint.
 
+TSANet has tested that boundary rather than only citing it. On 2026-07-28 a
+session holding the most privileged non-admin role available on the test
+instance was refused by the server on both endpoints the deploy screen uses:
+`403 Only admin user is allowed` on the bundle upload, and `403 Forbidden` on
+the app-settings write that **Apply** performs. Both requests carried a
+deliberately malformed body, so neither could have changed anything even had
+authorization passed. Read this as one role, on one instance, on one day: it
+confirms the vendor's documentation rather than replacing it, and roles and
+instances vary.
+
 The same screen's **Detect field IDs** and **Apply** work the same way. Detect
 reads your ticket fields, and Apply writes the matched IDs back into the app's
 own settings; both run on the signed-in administrator's session, hold no
