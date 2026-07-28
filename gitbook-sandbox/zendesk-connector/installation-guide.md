@@ -584,15 +584,20 @@ In Admin Center &gt; Objects and rules &gt; Tickets &gt; Fields, create:
 * **TSANet Action Text**, a text field for the supporting text (a reject reason,
   an information question, or a note body).
 
-Note the Field ID of each, shown in the URL when you open the field. These two
-are not covered by **Detect field IDs**.
+You do not need to note the Field IDs. Once both fields exist, run **Detect
+field IDs** again and click **Apply** — these two are optional entries in the
+same detection that filled in the core fields, so it picks them up exactly as it
+did those.
 
 ### Turn the field actions on
 
-Enter both field IDs, plus your TSANet engineer email, in the TSANet Connect
-app's settings alongside the values from Step 4b, then run **Deploy bundle**
-again (Step 4c). The app re-uploads with the field-action resources included
-and reinstalls every job spec.
+Run **Detect field IDs** and **Apply** to fill in the two field IDs, then add
+your **TSANet engineer email** by hand. That one is not a ticket field, so
+detection cannot find it. It is the address TSANet records as the engineer on an
+Accept, and it must be on your member-registered domain.
+
+Then run **Deploy bundle** again (Step 4c). The app re-uploads with the
+field-action resources included and reinstalls every job spec.
 
 Both field IDs must be set together. One without the other is reported as an
 error rather than guessed at.
