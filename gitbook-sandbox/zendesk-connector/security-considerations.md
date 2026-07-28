@@ -301,6 +301,17 @@ enabling the deploy button — but note that the in-app check is a usability
 guard, not the security boundary. The boundary is Zendesk's own server-side
 authorization on the endpoint.
 
+The same screen's **Detect field IDs** and **Apply** work the same way. Detect
+reads your ticket fields, and Apply writes the matched IDs back into the app's
+own settings; both run on the signed-in administrator's session, hold no
+standing credential, and are governed by the same server-side authorization.
+Two properties are worth knowing. Apply never writes a value you have not been
+shown: Detect displays the full field-to-ID mapping first, and it refuses to
+resolve a field at all when two fields share a title or the matched field is
+the wrong type, rather than guessing. And Apply writes only the field-ID
+settings — your TSANet credentials are untouched by it, and the password
+remains a secure setting that the app cannot read back.
+
 ## Questions
 
 For a deeper security review, environment access, or to request the current
