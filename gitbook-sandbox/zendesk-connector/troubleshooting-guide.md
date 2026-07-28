@@ -106,7 +106,9 @@ You do not enter these by hand. Open **TSANet Connect** from the left nav bar an
 | Token-based lookups fail | The **TSANet Token** field ID in settings matches the field, and the same ID is used by the maintenance jobs (see below) |
 
 {% hint style="info" %}
-**Detect field IDs** does not cover the two optional field-action fields (**TSANet Action** and **TSANet Action Text**). For those, read the numeric ID from the field's URL in **Admin Center → Objects and rules → Tickets → Fields** and enter it in the app settings by hand.
+Detect covers **every** ticket field the integration uses, including the two optional field-action ones (**TSANet Action** and **TSANet Action Text**). A field that does not exist on this instance is reported as not found and skipped, which is fine for the optional ones: the feature they belong to simply stays off. Create the field, re-run Detect, and click **Apply**.
+
+The one setting Detect cannot fill is the **TSANet engineer email**. It is not a ticket field, so there is nothing to detect. Enter it by hand, and make sure it is on your member-registered domain, because TSANet's Accept endpoint rejects any other domain.
 {% endhint %}
 
 ## For Administrators — Inbound, SLA & Maintenance
