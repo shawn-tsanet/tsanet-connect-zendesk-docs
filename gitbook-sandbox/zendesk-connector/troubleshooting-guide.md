@@ -95,7 +95,9 @@ This is the single most common configuration problem.
 
 ### Custom field issues (status not updating, deadline blank)
 
-The app reads and writes five custom ticket fields. Each must exist and its **numeric field ID** must be entered correctly in the app settings.
+The app reads and writes five custom ticket fields. Each must exist, and its **numeric field ID** must be recorded in the app settings.
+
+You do not enter these by hand. Open **TSANet Connect** from the left nav bar and click **Detect field IDs**: it reads the fields out of this instance, shows you what it matched, and writes the IDs into the app's settings when you click **Apply**. If a field was renamed, retyped, or duplicated, re-running Detect is the fix. It reports ambiguous or wrong-typed matches rather than guessing at them.
 
 | If you see… | Check |
 | --- | --- |
@@ -104,7 +106,7 @@ The app reads and writes five custom ticket fields. Each must exist and its **nu
 | Token-based lookups fail | The **TSANet Token** field ID in settings matches the field, and the same ID is used by the maintenance jobs (see below) |
 
 {% hint style="info" %}
-You can find a field's numeric ID in the field's URL in **Admin Center → Objects and rules → Tickets → Fields**.
+**Detect field IDs** does not cover the two optional field-action fields (**TSANet Action** and **TSANet Action Text**). For those, read the numeric ID from the field's URL in **Admin Center → Objects and rules → Tickets → Fields** and enter it in the app settings by hand.
 {% endhint %}
 
 ## For Administrators — Inbound, SLA & Maintenance
@@ -173,7 +175,7 @@ When something is wrong and you are not sure where to start, work through these 
 
 1. **Credentials** — are the TSANet username/password in the app settings correct, and is the **environment** (`BETA`/`PRODUCTION`) right?
 2. **Domain** — is the TSANet API username on your company's registered domain?
-3. **Field IDs** — do the five custom field IDs in the app settings match the actual fields?
+3. **Field IDs** — do the five custom field IDs in the app settings match the actual fields? Re-run **Detect field IDs** to check and repair them.
 4. **Webhook** — does TSANet have the correct inbound webhook URL, username, and password?
 5. **Triggers** — do tag-based triggers use **Current tags**?
 
