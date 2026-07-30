@@ -143,17 +143,31 @@ A named bucket inside Zendesk's ZIS platform that all TSANet resources will
 live in: connections, the flow bundle, and webhooks.
 
 ```bash
-curl -s -X POST \
+curl -s -w "\nHTTP %{http_code}\n" -X POST \
   "https://{your-subdomain}.zendesk.com/api/services/zis/registry/tsanet_connect" \
   -H "Authorization: Bearer $SETUP_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"description": "TSANet Connect integration"}'
 ```
 
-A `200 OK` response confirms the container was created.
+An `HTTP 200` response confirms the container was created. The integration name
+is case-sensitive, so it must be exactly `tsanet_connect`.
 
 {% hint style="info" %}
-A `409 Conflict` means the integration already exists. That is fine, continue.
+An `HTTP 409` means the integration already exists. That is fine, continue.
+{% endhint %}
+
+{% hint style="warning" %}
+**Do not continue until you see 200 or 409.** This is the one step whose failure
+surfaces later and in a form that points somewhere else: with no container,
+Step 2b returns `401 Authorization failed due to integration mismatch`, which
+reads like a bad Entra credential rather than a missing container.
+
+The usual cause is permissions. ZIS registry endpoints are admin-only, and a
+`client_credentials` token acts as the user its OAuth client was created under.
+A non-admin therefore mints tokens successfully in Step 1a and is refused only
+here. If that happens, create the Step 1a OAuth client again while signed in as
+an administrator, then mint both tokens again.
 {% endhint %}
 
 Finally, request a ZIS OAuth token. You will use it to authenticate every ZIS

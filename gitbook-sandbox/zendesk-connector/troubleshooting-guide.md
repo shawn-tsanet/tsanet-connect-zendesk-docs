@@ -152,6 +152,28 @@ Current setups use a ZIS **OAuth client-credentials connection** (Microsoft Entr
 
 <details>
 
+<summary>"Authorization failed due to integration mismatch" (401)</summary>
+
+The `tsanet_connect` integration container does not exist on your instance, or the name in the URL is capitalized differently (it is case-sensitive). **Your credentials are not the problem.** The three ZIS authentication failures are distinct, so read the exact string you got back:
+
+* `401 Authorization failed due to integration mismatch` — the integration name in the URL path is not registered on this account.
+* `401 Authentication failed` — the bearer token is missing, empty, malformed, or expired.
+* `403 API token is not supported` — a Zendesk API token was sent where a ZIS OAuth token is required.
+
+Check whether the container exists:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" \
+  -H "Authorization: Bearer $ZIS_TOKEN" \
+  "https://{your-subdomain}.zendesk.com/api/services/zis/registry/tsanet_connect/job_specs"
+```
+
+`200` means it exists. Anything else means Step 1c of the Installation Guide did not complete. Re-run it and confirm it returns 200 or 409 before continuing.
+
+</details>
+
+<details>
+
 <summary>You cannot see the integration in Admin Center</summary>
 
 ZIS custom integrations are **API-only** and do not appear in the Admin Center UI. Verify it with a direct API call:
