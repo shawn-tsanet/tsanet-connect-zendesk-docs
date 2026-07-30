@@ -70,8 +70,9 @@ ID settings are deliberately blank when you install.
 
 ## The Five Steps at a Glance
 
-1. **Register Zendesk with ZIS.** Create the integration's OAuth client, the
-   ZIS OAuth client, and the integration container ZIS needs to manage itself.
+1. **Register Zendesk with ZIS.** Create the integration's OAuth client and the
+   integration container ZIS needs to manage itself. ZIS creates its own OAuth
+   client for you as part of that.
 2. **Connect ZIS to TSANet.** Register the Entra OAuth client-credentials
    connection that lets ZIS call the TSANet API without handling
    authentication itself.
@@ -83,7 +84,8 @@ ID settings are deliberately blank when you install.
 
 ## Step 1: Register Zendesk with ZIS
 
-Three pieces of one-time Zendesk-side setup.
+Two pieces of one-time Zendesk-side setup. You create one OAuth client; ZIS
+creates the second one for you.
 
 ### 1a. Create the integration's OAuth client + setup token
 
@@ -122,22 +124,7 @@ SETUP_TOKEN=$(curl -s -X POST "https://{your-subdomain}.zendesk.com/oauth/tokens
 > 📸 **Screenshot placeholder:** The Add OAuth client screen in Admin Center,
 > with Client kind set to Confidential.
 
-### 1b. Create a ZIS OAuth client
-
-ZIS needs its own OAuth client to issue the short-lived tokens it uses to
-manage its own connections and flows. This is a separate client from the
-integration client above.
-
-Admin Center &gt; Apps and integrations &gt; APIs &gt; OAuth clients &gt; Add
-OAuth client. Fill in:
-
-* **Client name:** `tsanet_zis_client`
-* **Company:** TSANet
-* **Redirect URLs:** `https://{your-subdomain}.zendesk.com` (a placeholder, not used)
-
-Click **Save** and copy the **Client ID** shown.
-
-### 1c. Create the ZIS integration container
+### 1b. Create the ZIS integration container
 
 A named bucket inside Zendesk's ZIS platform that all TSANet resources will
 live in: connections, the flow bundle, and webhooks.
@@ -167,19 +154,46 @@ The usual cause is permissions. ZIS registry endpoints are admin-only, and a
 `client_credentials` token acts as the user its OAuth client was created under.
 A non-admin therefore mints tokens successfully in Step 1a and is refused only
 here. If that happens, create the Step 1a OAuth client again while signed in as
-an administrator, then mint both tokens again.
+an administrator, then mint the setup token again.
+{% endhint %}
+
+Creating the container also creates an OAuth client for it, named
+`zis_tsanet_connect`. The `200` response carries it as `zendesk_oauth_client`:
+
+```json
+"zendesk_oauth_client": { "id": 1234567890123, "identifier": "zis_tsanet_connect", "secret": "..." }
+```
+
+{% hint style="danger" %}
+**This is the only client that can mint your ZIS token.** A ZIS token is bound to
+exactly one integration, and the binding comes from the client that minted it. A
+token from a client you created yourself is refused on every ZIS management
+endpoint with `401 Authorization failed due to integration mismatch`, no matter
+how much access that client has. Only `zis_<integration-name>` works.
 {% endhint %}
 
 Finally, request a ZIS OAuth token. You will use it to authenticate every ZIS
-management call in Steps 2 and 4:
+management call in Steps 2 and 4. Pass the numeric `id` from
+`zendesk_oauth_client` above, not the identifier string, and not the client from
+Step 1a:
 
 ```bash
 ZIS_TOKEN=$(curl -s -X POST \
   "https://{your-subdomain}.zendesk.com/api/v2/oauth/tokens" \
   -H "Authorization: Bearer $SETUP_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"token":{"client_id":"YOUR_ZIS_CLIENT_ID","scopes":["read","write"]}}' \
+  -d '{"token":{"client_id":ZIS_CLIENT_NUMERIC_ID,"scopes":["read","write"]}}' \
   | jq -r '.token.full_token')
+```
+
+The mint needs only the numeric id, not the client's secret, so if you did not
+keep the create response you can look the id up at any time. Find the entry whose
+`identifier` is `zis_tsanet_connect`:
+
+```bash
+curl -s -H "Authorization: Bearer $SETUP_TOKEN" \
+  "https://{your-subdomain}.zendesk.com/api/v2/oauth/clients.json" \
+  | jq '.clients[] | {id, identifier}'
 ```
 
 ## Step 2: Connect ZIS to TSANet
@@ -693,7 +707,7 @@ a Zendesk API token.
 
 | Context | Method | Where it is stored |
 | --- | --- | --- |
-| Setup commands (Step 1c, and the macro call) | Short-lived OAuth setup token (`$SETUP_TOKEN`, client_credentials) | Minted per use from the integration's OAuth client, nothing stored |
+| Setup commands (Step 1b, and the macro call) | Short-lived OAuth setup token (`$SETUP_TOKEN`, client_credentials) | Minted per use from the integration's OAuth client, nothing stored |
 | ZIS management calls (Steps 1c, 2, 4a, 4d) | ZIS OAuth bearer (`$ZIS_TOKEN`) | Used per session, nothing stored |
 | Bundle deploy (Step 4c) | Your own signed-in admin session, via the TSANet Connect app | Nothing stored, the app inherits the session. This endpoint refuses OAuth, which is why it runs in the app rather than as a setup command |
 | ZIS to TSANet API (runtime) | OAuth client credentials (Microsoft Entra) | ZIS connection, minted and renewed automatically |

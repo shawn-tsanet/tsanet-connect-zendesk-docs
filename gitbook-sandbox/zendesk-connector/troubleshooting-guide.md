@@ -154,13 +154,25 @@ Current setups use a ZIS **OAuth client-credentials connection** (Microsoft Entr
 
 <summary>"Authorization failed due to integration mismatch" (401)</summary>
 
-The `tsanet_connect` integration container does not exist on your instance, or the name in the URL is capitalized differently (it is case-sensitive). **Your credentials are not the problem.** The three ZIS authentication failures are distinct, so read the exact string you got back:
+**Your credentials are not the problem.** The three ZIS authentication failures are distinct, so read the exact string you got back:
 
-* `401 Authorization failed due to integration mismatch` — the integration name in the URL path is not registered on this account.
+* `401 Authorization failed due to integration mismatch` — the token is valid but is not for this integration, or the integration is not registered on this account.
 * `401 Authentication failed` — the bearer token is missing, empty, malformed, or expired.
 * `403 API token is not supported` — a Zendesk API token was sent where a ZIS OAuth token is required.
 
-Check whether the container exists:
+For the mismatch there are two causes. Check them in this order.
+
+**1. `$ZIS_TOKEN` was minted from the wrong OAuth client.** This is the common one. A ZIS token is bound to exactly one integration, and the binding comes from the client that minted it. It must be `zis_tsanet_connect`, which ZIS created for you when you registered the container. A client you created yourself in Admin Center is refused on every ZIS endpoint, however much access it has. List your clients and find the `zis_` one:
+
+```bash
+curl -s -H "Authorization: Bearer $SETUP_TOKEN" \
+  "https://{your-subdomain}.zendesk.com/api/v2/oauth/clients.json" \
+  | jq '.clients[] | {id, identifier}'
+```
+
+Re-mint `$ZIS_TOKEN` using that entry's numeric `id`. You do not need its secret.
+
+**2. The container does not exist**, or the name in the URL is capitalized differently (it is case-sensitive):
 
 ```bash
 curl -s -o /dev/null -w "%{http_code}\n" \
@@ -168,7 +180,7 @@ curl -s -o /dev/null -w "%{http_code}\n" \
   "https://{your-subdomain}.zendesk.com/api/services/zis/registry/tsanet_connect/job_specs"
 ```
 
-`200` means it exists. Anything else means Step 1c of the Installation Guide did not complete. Re-run it and confirm it returns 200 or 409 before continuing.
+`200` means it exists. Anything else means Step 1b of the Installation Guide did not complete. Re-run it and confirm it returns 200 or 409 before continuing.
 
 </details>
 
