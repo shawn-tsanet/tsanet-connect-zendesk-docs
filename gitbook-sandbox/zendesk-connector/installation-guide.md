@@ -528,10 +528,18 @@ still intercept events. Uninstall them with
 `DELETE /api/services/zis/registry/job_specs/install?job_spec_name=zis:tsanet_connect:job_spec:<name>`.
 {% endhint %}
 
-### 4d. Create the inbound webhook
+### 4d. Create the inbound webhook, then subscribe TSANet to it
 
-This is the address TSANet uses to reach you whenever something happens on one
-of your collaborations:
+This is **two API calls, and you make both of them.** Nothing here is an email
+to TSANet, and nobody at TSANet does anything on your behalf.
+
+1. **Zendesk** creates the address TSANet will post to, and gives you a
+   credential that guards it.
+2. **TSANet** is told to post to that address, using that credential.
+
+The second call just carries across what the first one returned.
+
+#### Call 1: create the ingest URL, on Zendesk
 
 ```bash
 curl -s -X POST \
@@ -544,10 +552,47 @@ curl -s -X POST \
 The response returns an ingest URL, Basic-auth credentials, and a `uuid`, shown
 only once. Save all of them immediately. There is no list API, so a lost `uuid`
 is unrecoverable and you will not be able to rotate the credential later.
+{% endhint %}
 
-Then send TSANet the ingest URL and Basic credentials so inbound events can be
-delivered: the webhook subscription is registered with `callbackUrl` set to the
-ingest URL and a `callbackAuth` of type `BASIC` carrying those credentials.
+#### Call 2: register the subscription, on TSANet
+
+Authenticate with your TSANet API account, the same one the sidebar app uses.
+Get a token from `POST /v1/login`, then:
+
+```bash
+curl -s -X POST "https://connect2.tsanet.net/v1/webhooks" \
+  -H "Authorization: Bearer YOUR_TSANET_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "callbackUrl": "THE_INGEST_URL_FROM_CALL_1",
+    "callbackAuth": {
+      "type": "BASIC",
+      "username": "THE_BASIC_USERNAME_FROM_CALL_1",
+      "password": "THE_BASIC_PASSWORD_FROM_CALL_1"
+    }
+  }'
+```
+
+`connect2.tsanet.net` is Beta; Production is `connect2.tsanet.org`. Leave
+`eventTypes` out: omitted means both `collaboration-request.created` and
+`note.created`, which is what the flow bundle expects.
+
+Save the `id` from the response, which is what you need to inspect or remove the
+subscription later. The response also carries `secret`, the HMAC signing key,
+returned only on creation.
+
+{% hint style="danger" %}
+**Use `/v1/webhooks`, not `/v2/webhooks`.** Both endpoints exist and both will
+accept your subscription, which makes this easy to get wrong and hard to notice.
+`/v2/` delivers CloudEvents, whose event type strings are prefixed
+(`org.tsanet.connect.collaboration-request.created`). The flow bundle matches the
+unprefixed V1 name, so on a `/v2/` subscription every delivery is accepted,
+returns 200, and then falls through to a no-op: **no ticket is ever created and
+nothing reports an error.**
+
+`/v1/webhooks` is deprecated with a sunset of 2027-01-01. Migrating the flow and
+existing subscriptions to CloudEvents is tracked work and will ship with a future
+app release. Until then, `/v1/` is the correct choice.
 {% endhint %}
 
 ### What happens on each inbound event
