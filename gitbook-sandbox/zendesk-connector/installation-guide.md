@@ -138,10 +138,28 @@ curl -s -w "\nHTTP %{http_code}\n" -X POST \
 ```
 
 An `HTTP 200` response confirms the container was created. The integration name
-is case-sensitive, so it must be exactly `tsanet_connect`.
+is case-sensitive.
 
 {% hint style="info" %}
 An `HTTP 409` means the integration already exists. That is fine, continue.
+{% endhint %}
+
+{% hint style="danger" %}
+**If you get `400 the integration: tsanet_connect is not available for upsert by this account`,**
+that is expected and is not a fault on your side. Zendesk requires ZIS integration
+names to be **globally unique across every Zendesk account**, so a name registered
+by anyone is unavailable to everyone else, and `tsanet_connect` is already taken.
+
+Register your own instead, for example `yourcompany_tsanet_connect`. Lowercase
+letters, digits, underscore and hyphen, 1 to 64 characters. Then use **your** name
+everywhere `tsanet_connect` appears in this guide, including the connection calls in
+Steps 2 and 4a and the webhook call in Step 4d, and set **TSANet integration name**
+in the app's settings in Step 3c so the flow bundle is built for your container.
+
+Requires app **v1.0.61 or later**. Two things to know if you take this path:
+connections do not move between integrations, so `tsanet_oauth` and `zendesk` both
+have to be created under your name; and the credential-rotation scripts take
+`--integration <your-name>`.
 {% endhint %}
 
 {% hint style="warning" %}
@@ -339,6 +357,7 @@ When prompted:
 | TSANet environment | `BETA` for setup and testing, `PRODUCTION` when live |
 | All field ID settings | **Leave blank.** Step 3b fills them in |
 | Allowed action roles | *Optional.* Comma-separated Zendesk role names permitted to click the TSANet action buttons. Empty means all agents |
+| TSANet integration name | Leave as `tsanet_connect`. Change it only if Step 1b forced you onto a different name, in which case enter the exact name you registered |
 
 `BETA` maps to `connect2.tsanet.net` and `PRODUCTION` to `connect2.tsanet.org`.
 Set it to match where your account is provisioned.
