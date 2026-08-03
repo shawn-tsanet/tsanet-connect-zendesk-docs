@@ -75,6 +75,23 @@ Notes posted by the partner are mirrored into the Zendesk ticket as internal com
 
 Only the **submitting** company can close a collaboration. If you received the request (an **inbound** case), the Close button will not appear — the partner who opened it closes it when the work is done. This is expected, not a bug.
 
+### "Submit failed" on a new request, but the partner received it anyway
+
+{% hint style="danger" %}
+**Do not press Submit again.** On app versions **before v1.0.63**, creating the case on TSANet and recording it on your own Zendesk ticket shared one error handler, so a failure in the second step reported the whole submit as failed while leaving the dialog filled in with the same request. The case existed and the partner already had it, and re-submitting opened a **second** collaboration request to that partner.
+{% endhint %}
+
+* **If it already happened,** close the duplicate case from the TSANet side, and tell the partner which one to work.
+* **The fix is v1.0.63 or later.** Ask your administrator to update the app. From that version the dialog closes as soon as the case is created, so re-sending is unavailable rather than merely discouraged, and a bookkeeping failure names the case token and says explicitly not to submit again.
+* **On v1.0.63 and later, "Submit failed" means nothing was sent** and retrying is correct.
+
+### The panel cuts off a partner form, search results, or a note thread
+
+The panel sizes itself to its content as of app **v1.0.63**. Before that it asked Zendesk for a fixed height regardless of what was in it, which clipped forms of roughly six fields or more, search results rendered after the panel was measured, and notes that loaded a moment after the case card.
+
+* Ask your administrator to update the app to v1.0.63 or later.
+* Some scrolling is still expected on a very busy ticket carrying several cases with long note threads. The panel is deliberately bounded so it cannot push your other sidebar apps out of reach.
+
 ## For Administrators — App & Settings
 
 ### The app upload or update
@@ -84,6 +101,38 @@ The ZAF app is distributed as a pre-built ZIP and installed privately — there 
 {% hint style="success" %}
 Updating is the same as installing: upload the new ZIP over the existing app. Your settings (credentials, environment, field IDs) are preserved across updates.
 {% endhint %}
+
+{% hint style="info" %}
+**Zendesk private apps do not auto-update.** There is no notification when a new version is published, so nothing changes on your instance until an administrator uploads the new ZIP. On app **v1.0.63 or later** the nav-bar deploy screen's **Current state** card shows which version is installed here and whether a newer one has been published.
+{% endhint %}
+
+### The deploy screen reports "Integration NOT operational" on a deploy that worked
+
+{% hint style="warning" %}
+**If `jobspec_handle_ping` and `jobspec_forward_comment` both show `[ok]`, your integration is fine and only the report was wrong.** Those two carry inbound collaboration handling and comment forwarding.
+{% endhint %}
+
+On app versions **before v1.0.62** the screen could report:
+
+```
+[FAIL] Install job spec jobspec_field_action
+       HTTP 400 {"message":"one or more requested job specs is invalid: jobspec_field_action"}
+[FAIL] Verify installed job specs
+       Not installed: jobspec_field_action
+```
+
+Field actions are optional, and when they are off the app correctly leaves `jobspec_field_action` out of the bundle it uploads. It then asked Zendesk to install that job spec anyway, and Zendesk was right to refuse. The verification step compared against the same wrong list.
+
+* **Who was affected:** anyone deploying without the two optional **TSANet Action** fields configured, which is the normal state for a first install. Those fields are created after the bundle is deployed, so a fresh installer does not have them yet.
+* **Instances with field actions on** were never affected.
+* **The fix is v1.0.62 or later.** Update the app and deploy the bundle again. No settings to adjust and no earlier step to re-run.
+* If you previously deployed **with** field actions on and now have them off, `jobspec_field_action` is now reported as an orphan rather than as missing, with the command to uninstall it. That is correct: it is still registered and still intercepting events while the flow that used it is gone.
+
+### Do I need to redeploy the bundle after updating the app?
+
+Usually not, and a needless deploy is not free: the upload orphans the installed job specs before the new ones go in, so the integration is briefly inactive.
+
+On app **v1.0.63 or later**, open **TSANet Connect** from the left nav bar and read the **Bundle** row of the **Current state** card. It compares what is registered on your instance against what the app you just installed would deploy, so it answers the question directly rather than by version number. Most releases do not change the bundle at all: between v1.0.54 and v1.0.60 there were six releases with no bundle change.
 
 ### Domain / "engineer email" validation errors
 

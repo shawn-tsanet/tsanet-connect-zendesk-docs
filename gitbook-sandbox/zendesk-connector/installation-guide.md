@@ -486,13 +486,47 @@ to know what to look at if a flow later misbehaves.
 ### 4c. Deploy the bundle
 
 1. In Zendesk Support, open **TSANet Connect** from the left nav bar.
-2. Check the **Pre-flight** results. All three must pass before the button enables.
-3. Click **Deploy bundle**.
+2. Read the **Current state** card at the top of the screen.
+3. Check the **Pre-flight** results. All three must pass before the button enables.
+4. Click **Deploy bundle**.
 
 The app substitutes your per-instance values, uploads the bundle, **installs
 every job spec in it**, then reads the registry back so you can see what is
 actually installed. Success is judged by that read-back, not by the upload
 response.
+
+{% hint style="info" %}
+**The Current state card tells you whether a deploy is needed at all.**
+Requires app **v1.0.63 or later**.
+
+| Row | What it tells you |
+| --- | --- |
+| Bundle | Whether the bundle registered on this instance matches what this app would deploy |
+| App version | Which version of the app is installed here |
+| Latest release | Whether a newer version has been published |
+
+Only the Bundle row bears on the decision, and it compares the bundle's
+**actual contents**, never version numbers. That is deliberate: between
+v1.0.54 and v1.0.60 there were six releases in which the ZIS bundle did not
+change once, so a version comparison would have asked you to redeploy six
+times for no functional change. The two version rows are reference only and
+can never disable the Deploy button.
+
+The Bundle row gives three different answers because the remedy differs.
+*Older than the one this app ships* means a different bundle generation, so
+deploy. *App settings changed since it was deployed* means the right
+generation built with different values, so deploy to pick them up. *Not
+deployed yet* means there is nothing registered to compare.
+{% endhint %}
+
+{% hint style="warning" %}
+**"Matches what this app would deploy" is not the same as "no deploy
+needed."** It establishes what is registered and nothing about whether the
+job specs are installed. A deploy interrupted between the upload and the
+installs leaves a matching registry on an integration that processes no
+events. Installed state is what Pre-flight and the post-deploy read-back
+are for.
+{% endhint %}
 
 {% hint style="success" %}
 **Job specs install themselves now.** Earlier revisions of this guide had you

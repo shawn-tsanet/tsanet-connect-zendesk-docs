@@ -252,6 +252,41 @@ password readable in the app's browser context. This was hardened in ZAF app
 **v1.0.42** (tracked as issue #49 in `tsanetgit/Zendesk_App`) and validated end to
 end on Beta.
 
+### Renaming the ZIS integration does not retire the old one (operational, advisory)
+
+ZIS integration names are globally unique across every Zendesk account, so a
+member whose account cannot claim `tsanet_connect` registers their own name and
+sets it in the app's **TSANet integration name** setting (app **v1.0.61 or
+later**). That is a supported path, and on a fresh install it is uneventful.
+
+**On an instance that has already deployed, a rename is not a move.** The old
+integration is not retired by registering a new one. Its job specs stay
+installed and keep intercepting the same events, so both integrations act on
+every inbound collaboration and **tickets are created twice**. Each copy is a
+genuine copy of partner case content, so this is a data-handling consequence
+and not merely a tidiness problem: the duplicate ticket carries the same
+cross-org submitter and engineer contact details as the original, and it
+persists until removed.
+
+The app's pre-flight warns about this and prints the commands to uninstall the
+old job specs. The warning is deliberately **advisory rather than blocking**,
+because running two integrations briefly is not always wrong, and because the
+check reads the *default* registry explicitly. A rename from one custom name to
+another is therefore not detectable by the app at all.
+
+**If you rename after deploying:**
+
+* Uninstall the old integration's job specs before or immediately after the new
+  deploy, using the commands the pre-flight prints.
+* Recreate the `tsanet_oauth` and `zendesk` connections under the new name.
+  **ZIS connections are integration-scoped** and do not move with a rename, so
+  "missing" and "exists under the old name" are different faults with different
+  fixes.
+* Re-run the credential-rotation scripts with `--integration <your-name>`. The
+  URLs in the rotation runbook embed the integration name.
+* Check for duplicate tickets created in the window when both integrations were
+  live, and remove the copies you do not intend to keep.
+
 ### Inbound signature verification (platform-gated; compensating controls in place)
 
 TSANet signs each delivery with an HMAC-SHA256 signature, but the Zendesk

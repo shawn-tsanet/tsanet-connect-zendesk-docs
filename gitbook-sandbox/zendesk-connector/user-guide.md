@@ -60,6 +60,23 @@ When expanded, the panel shows:
 The panel refreshes automatically about once a minute while any agent has Zendesk
 open, so the case detail stays current without a manual refresh.
 
+{% hint style="info" %}
+**The panel sizes itself to what is on screen.** Requires app **v1.0.63 or
+later**. It re-measures when the New Collaboration dialog opens and closes,
+when a partner's request form renders, when an active case's notes finish
+loading, and when a case closes.
+
+Before v1.0.63 the panel asked Zendesk for a fixed height no matter what was
+in it, so a partner form with six or more fields was cut off at the bottom,
+partner search results were clipped, and note threads were truncated mid-note.
+If you are seeing any of that, your instance is on an older version and an
+administrator needs to update the app.
+
+A very busy ticket, carrying several collaboration cases each with a long note
+thread, can still scroll. That is intended: the panel is bounded so it cannot
+push your other sidebar apps out of reach.
+{% endhint %}
+
 > 📸 **Screenshot placeholder:** The expanded TSANet sidebar panel on a Zendesk
 > ticket, showing case detail, the SLA countdown, and the action buttons.
 
@@ -78,6 +95,27 @@ When your engineer needs help from a partner vendor:
 
 The case now appears in the panel as OPEN. The SLA countdown begins, and you
 will be notified in the ticket when the partner responds.
+
+{% hint style="danger" %}
+**If you see "Submit failed", nothing was sent, and submitting again is the
+right thing to do.** Requires app **v1.0.63 or later**, where that message
+means what it says.
+
+On older versions it did not. Creating the case on TSANet and recording it on
+your own Zendesk ticket shared one error handler, so a failure in the second
+step showed **Submit failed** beside a dialog still filled in with the same
+request. The case existed and the partner already had it. Pressing Submit
+again opened a **second** collaboration request to that partner.
+
+From v1.0.63 the dialog closes the moment the case is created, so re-sending
+is unavailable rather than merely discouraged. If the follow-up bookkeeping
+then fails, the message tells you the request **was** submitted, names the
+case token so it can be picked up by hand, and says not to submit again. That
+second step can fail in ordinary use: it writes to the ticket under Zendesk's
+safe-update guard, which is designed to refuse when a trigger, an automation,
+or another agent touches the same ticket at the same moment. Opening a
+collaboration case from a live support ticket is exactly when that happens.
+{% endhint %}
 
 ## Working an Inbound Request
 
