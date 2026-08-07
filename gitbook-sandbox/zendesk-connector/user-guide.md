@@ -221,6 +221,16 @@ Once a collaboration is active, both sides keep working it through notes.
     customer on the ticket.
 
 {% hint style="info" %}
+**Who inbound messages appear from (v1.0.64+).** If your admin configured the
+optional **Shared author user id** setting, everything the integration writes —
+the inbound case description, receipts, and partner notes mirrored onto the
+ticket — appears under that dedicated user (for example "IBM via TSANet")
+instead of the admin who authorised the connection. Mirrored partner notes also
+show the individual sender's email address in the note body, so you can see who
+wrote a message even though they are not a user in your Zendesk.
+{% endhint %}
+
+{% hint style="info" %}
 **Partner-only lives only in the app dialog or the TSANet Action field.**
 Zendesk's own reply box offers just *Public reply* and *Internal note* and
 cannot be changed, so it cannot send a partner-only note. A normal **public

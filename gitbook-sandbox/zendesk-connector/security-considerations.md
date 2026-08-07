@@ -138,6 +138,11 @@ facts govern the lifecycle:
   Cross-org erasure is controller-to-controller coordination through TSANet.
 * **Selectors are built in.** Every ticket the integration touches is tagged
   `tsanet_inbound` or `tsanet_outbound`; retention tooling keys on those tags.
+  From the v1.0.64 bundle onward, `tsanet_updated` additionally marks tickets
+  whose case status changed. Earlier bundles never applied that tag, so a sweep
+  keyed on it will not match tickets whose last status change predates your
+  v1.0.64 deploy — scope those on `tsanet_inbound` / `tsanet_outbound`, which
+  have applied since installation.
 * **Two supported removal modes.** Whole-ticket deletion (native deletion
   schedules, which act on tickets closed 120+ days; tag-scoped schedules
   require the ADPP add-on, otherwise use a scheduled API sweep) or selective
@@ -200,6 +205,13 @@ verification is a security control rather than an installation detail.
 * **Fail-closed forwarding.** Comment forwarding to the partner only fires for
   agent or admin public replies. End-user replies and internal notes are never
   forwarded.
+* **Shared author stays inside your org (v1.0.64+).** The optional shared
+  author user is a record in your own directory with an email on **your own**
+  domain — never the partner's — so Zendesk notifications for tickets it
+  touches cannot route outside your org. A wrong or deleted user id cannot
+  break ticket creation: Zendesk silently falls back to the connection user,
+  and the deploy pre-flight resolves the id and shows the name so a typo is
+  caught before it ships.
 * **Asymmetric close.** Only the submitting company can close a collaboration, so
   a receiving member cannot unilaterally end a case it did not open.
 

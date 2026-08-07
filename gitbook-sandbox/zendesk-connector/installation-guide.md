@@ -358,6 +358,7 @@ When prompted:
 | All field ID settings | **Leave blank.** Step 3b fills them in |
 | Allowed action roles | *Optional.* Comma-separated Zendesk role names permitted to click the TSANet action buttons. Empty means all agents |
 | TSANet integration name | Leave as `tsanet_connect`. Change it only if Step 1b forced you onto a different name, in which case enter the exact name you registered |
+| Shared author user id | *Optional (v1.0.64+).* Numeric Zendesk user id of a dedicated user, for example "IBM via TSANet", that authors everything the integration writes: inbound case descriptions, receipts and mirrored partner notes. Create the user first. An end user costs no seat and a light agent also works; either way its email must be on **your own** domain, never the partner's, so notifications cannot route outside your org. Empty means those messages appear under the admin who authorised the Zendesk connection. The bundle deploy pre-flight resolves the id and shows the user's name before anything ships |
 
 `BETA` maps to `connect2.tsanet.net` and `PRODUCTION` to `connect2.tsanet.org`.
 Set it to match where your account is provisioned.
