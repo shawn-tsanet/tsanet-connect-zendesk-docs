@@ -67,6 +67,30 @@ Two controls limit what can leave:
   enforced server-side by TSANet, independent of the app, and prevents a case
   from being attributed to a customer address or a personal account.
 
+### Every outbound destination, enumerated
+
+For egress review, two origins matter: calls from the agent's or admin's
+**browser**, and calls Zendesk makes server-side on the integration's behalf
+(the ZAF proxy and ZIS).
+
+| Destination | Initiated from | Credential | What is sent |
+| --- | --- | --- | --- |
+| `static.zdassets.com` | Agent/admin browser | None | The ZAF SDK script request itself, nothing else. Version-pinned with subresource integrity |
+| `connect2.tsanet.net` / `connect2.tsanet.org` | Zendesk's ZAF proxy, server-side. The browser never contacts these hosts directly | TSANet API user | Case data, by design: partner searches, submissions, accept/reject/request-info, notes, attachments |
+| The same two `connect2` hosts | Zendesk ZIS, server-side | Entra client credential | Inbound event pulls and ticket-driven case actions |
+| `login.microsoftonline.com` | Zendesk ZIS, server-side | Entra client ID + secret | A standard OAuth token request. No ticket or case data |
+| `api.github.com` | The admin's browser, directly (the call sets `cors: true`, which bypasses the ZAF proxy) | None; unauthenticated, the only header is `Accept` | No ticket, member, or PII data. What is disclosed is the admin's IP address and the fact that the deploy screen was opened |
+
+The `api.github.com` call asks for the connector's latest GitHub release so the
+deploy screen can show whether a newer bundle exists, and runs on every open of
+that screen (an admin surface). The response gates nothing: the redeploy
+recommendation is driven by byte-comparison of bundle content, and the Deploy
+button never depends on it. If the call fails, or the unauthenticated GitHub
+rate limit (60 requests per hour per IP) is exhausted, the screen shows an
+informational row stating explicitly that this does not affect deploying.
+Blocking `api.github.com` at your egress costs you the release row and nothing
+else.
+
 ## Authentication and Credential Storage
 
 Each connection authenticates independently. No single credential unlocks
@@ -97,9 +121,12 @@ validated end to end on Beta.
 * **TLS everywhere.** Every connection (browser to TSANet, ZIS to TSANet, TSANet
   to ZIS, and all Zendesk API traffic) is HTTPS.
 * **Egress allow-list.** The ZAF app declares a `domainWhitelist` of exactly two
-  hosts (`connect2.tsanet.net` and `connect2.tsanet.org`). Zendesk blocks the app
-  from making requests to any other external domain, so the app cannot exfiltrate
-  data to an arbitrary endpoint.
+  hosts (`connect2.tsanet.net` and `connect2.tsanet.org`), and Zendesk blocks
+  proxied app requests to any other external domain. Two deliberate exceptions
+  sit outside the proxy and carry no case data: the ZAF SDK script load from
+  `static.zdassets.com` (version-pinned, subresource integrity) and the deploy
+  screen's unauthenticated release check to `api.github.com` (admin surface
+  only). Both are enumerated in the destination table under Data Flows.
 * **Cross-origin sandbox.** The app runs in a sandboxed, cross-origin iframe.
   Browser primitives such as `prompt()` and `confirm()` are blocked, and the app
   cannot reach the parent Zendesk page outside the ZAF SDK's defined channel.
@@ -220,7 +247,7 @@ verification is a security control rather than an installation detail.
 | Surface | Control |
 | --- | --- |
 | App distribution and tampering | Private app, ZIP install only, no public Marketplace listing. The release pipeline runs least-privilege, pins its actions to commit SHAs, and publishes only after a required human approval; every package ships with a build-provenance attestation and a SHA-256 checksum that members verify before installing. |
-| Outbound exfiltration | `domainWhitelist` limits egress to the two TSANet hosts. |
+| Outbound exfiltration | `domainWhitelist` limits proxied app egress to the two TSANet hosts. The two non-proxy destinations (the SDK load and the deploy screen's release check) carry no case data; every destination is enumerated under Data Flows. |
 | Inbound spoofing | Basic auth (`callbackAuth`) on every delivery, enforced by ZIS; two independent rotatable secrets (capability-token ingest URL + Basic credential); event content is pulled from the TSANet API by token, so forged deliveries cannot inject case content. |
 | Unauthorized forwarding | Fail-closed agent/admin author guard. |
 | Credential theft in transit | TLS on every hop; token held in memory only. |

@@ -370,7 +370,9 @@ server-side by Zendesk.
 {% hint style="info" %}
 **Allowed action roles is a convenience gate, not a security boundary.** It
 controls which roles see and can click the TSANet action buttons. The TSANet
-Connect API and its credential remain the real authorization control.
+Connect API and its credential remain the real authorization control. It also
+does not hide the app itself; to remove the panel from non-TSANet agents
+entirely, see **3d**.
 {% endhint %}
 
 > 📸 **Screenshot placeholder:** The ZAF app settings screen with the TSANet
@@ -413,6 +415,29 @@ Updating the app later is the same process: download the new ZIP and upload it
 over the existing app. Settings are preserved across updates, so there is no
 need to re-enter credentials or re-run Detect.
 {% endhint %}
+
+### 3d. Optional: hide the app from non-TSANet agents
+
+By default every agent sees the TSANet Connect panel, and agents outside
+**Allowed action roles** see it but cannot act in it. If only some of your
+teams work TSANet cases, hide the app from everyone else with Zendesk's native
+install-time restrictions. No app setting is involved:
+
+**Admin Center > Apps and integrations > Zendesk Support apps**, open the gear
+menu on **TSANet Connect**, choose **Change settings**, then enable **role
+restrictions** and/or **group restrictions** and select who should see the
+app. Agents outside the selection get no TSANet panel at all.
+
+{% hint style="warning" %}
+**Admins and billing admins are two separate roles.** Select both if both
+should keep access, or your billing admins lose the app.
+{% endhint %}
+
+This is the visibility control; **Allowed action roles** (3a) is the action
+gate. One hides the app, the other decides who may click its buttons, and
+neither is a security boundary: the TSANet Connect API and its credential
+remain the real authorization control. You can set this at install time or any
+time after, and changing it later does not touch the app's settings.
 
 ## Step 4: Deploy the ZIS Flow Bundle
 
