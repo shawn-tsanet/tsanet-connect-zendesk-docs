@@ -195,6 +195,13 @@ still types any needed text into TSANet Action Text first. See the
 [Installation Guide](installation-guide) for how to create them.
 {% endhint %}
 
+{% hint style="info" %}
+**Automatic acceptance.** Because the TSANet Action field is automatable, a
+Zendesk trigger can accept every inbound request the moment its ticket is
+created, with no agent involved. See
+[Auto-Accepting Inbound Cases](auto-accepting-inbound-cases).
+{% endhint %}
+
 > 📸 **Screenshot placeholder:** The TSANet Action dropdown and TSANet Action
 > Text field on a Zendesk ticket.
 
