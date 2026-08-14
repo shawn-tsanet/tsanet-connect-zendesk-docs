@@ -241,6 +241,14 @@ verification is a security control rather than an installation detail.
   caught before it ships.
 * **Asymmetric close.** Only the submitting company can close a collaboration, so
   a receiving member cannot unilaterally end a case it did not open.
+* **App visibility is installation-scoped.** Zendesk's role and group
+  restrictions decide who sees the app at all, and they apply to every surface
+  at once: excluding an agent removes the ticket-sidebar panel and the
+  background poller along with the left-nav deploy entry. For staff who work
+  TSANet tickets the left-nav entry cannot be hidden separately; it is
+  admin-gated in function, so for agents it is a read-only status page. The
+  in-app **Allowed action roles** setting separately gates who can invoke
+  TSANet actions inside a visible panel.
 
 ## Attack Surface Summary
 

@@ -429,6 +429,16 @@ restrictions** and/or **group restrictions** and select who should see the
 app. Agents outside the selection get no TSANet panel at all.
 
 {% hint style="warning" %}
+**The restriction hides every surface of the app, not just the left-nav
+entry.** Role and group restrictions apply to the whole installation: an
+excluded agent loses the ticket-sidebar panel and the background poller along
+with the left-nav entry. Use them only for teams that should see no TSANet
+surface at all. If your staff work TSANet tickets, the left-nav entry cannot
+be hidden separately; that is acceptable, because the deploy screen requires
+administrator access, so for a support agent it is a read-only status page.
+{% endhint %}
+
+{% hint style="warning" %}
 **Admins and billing admins are two separate roles.** Select both if both
 should keep access, or your billing admins lose the app.
 {% endhint %}
