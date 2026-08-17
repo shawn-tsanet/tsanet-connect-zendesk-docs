@@ -122,8 +122,17 @@ collaboration case from a live support ticket is exactly when that happens.
 When a partner vendor needs help from your team, the request arrives as a new
 Zendesk ticket with the TSANet case detail already attached.
 
+Since v1.0.69, any values the partner filled in on your process form (for
+example a customer identifier, contact details, or their own case number)
+appear in two places: as rows on the case card in the TSANet panel, and in the
+ticket's description under a **Partner form fields:** heading, where they are
+searchable like any other ticket text. Fields the partner left empty are
+skipped.
+
 Open the ticket and review the request in the TSANet panel, then respond using
-one of the action buttons.
+one of the action buttons. (Teams that want every inbound request accepted
+automatically on arrival can do that instead — see
+[Auto-Accepting Inbound Cases](auto-accept-guide.md).)
 
 > 📸 **Screenshot placeholder:** The action buttons on an inbound TSANet case
 > (Accept, Reject, Request More Info).

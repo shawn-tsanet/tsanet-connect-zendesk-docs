@@ -359,6 +359,8 @@ When prompted:
 | Allowed action roles | *Optional.* Comma-separated Zendesk role names permitted to click the TSANet action buttons. Empty means all agents |
 | TSANet integration name | Leave as `tsanet_connect`. Change it only if Step 1b forced you onto a different name, in which case enter the exact name you registered |
 | Shared author user id | *Optional (v1.0.64+).* Numeric Zendesk user id of a dedicated user, for example "IBM via TSANet", that authors everything the integration writes: inbound case descriptions, receipts and mirrored partner notes. Create the user first. An end user costs no seat and a light agent also works; either way its email must be on **your own** domain, never the partner's, so notifications cannot route outside your org. Empty means those messages appear under the admin who authorised the Zendesk connection. The bundle deploy pre-flight resolves the id and shows the user's name before anything ships |
+| Auto-accept inbound requests | *Optional (v1.0.69+), off by default.* Accept every inbound collaboration request the moment its ticket is created, with no agent action. Read [Auto-Accepting Inbound Cases](auto-accept-guide.md) before enabling: acceptance is committed without a triage window, and changing this setting only takes effect after the bundle is redeployed |
+| Auto-accept next steps | *Optional (v1.0.69+).* The next-steps text partners see on integration-driven accepts (both auto-accept and the TSANet Action field). Defaults to "Accepted via Zendesk."; an auto-accepting team usually wants something like "Case accepted automatically; an engineer will follow up shortly." Takes effect at the next bundle redeploy |
 
 `BETA` maps to `connect2.tsanet.net` and `PRODUCTION` to `connect2.tsanet.org`.
 Set it to match where your account is provisioned.
@@ -753,10 +755,12 @@ did those.
 
 ### Turn the field actions on
 
-Run **Detect field IDs** and **Apply** to fill in the two field IDs, then add
-your **TSANet engineer email** by hand. That one is not a ticket field, so
-detection cannot find it. It is the address TSANet records as the engineer on an
-Accept, and it must be on your member-registered domain.
+Run **Detect field IDs** and **Apply** to fill in the two field IDs. The
+**TSANet engineer email** setting is the address TSANet records as the engineer
+on an integration-driven Accept; it is not a ticket field, so detection cannot
+find it. Since v1.0.69 you can leave it blank: the integration falls back to
+your TSANet API username, which satisfies the same member-registered-domain
+rule. Set it by hand only if you want a different address recorded.
 
 Then run **Deploy bundle** again (Step 4c). The app re-uploads with the
 field-action resources included and reinstalls every job spec.

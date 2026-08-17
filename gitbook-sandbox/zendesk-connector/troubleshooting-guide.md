@@ -168,6 +168,13 @@ Incoming TSANet events reach Zendesk through the **inbound webhook** you created
 
 * Confirm TSANet has the correct webhook **URL, username, and password** you generated during setup (these are shown only once — if they were lost, regenerate and resend them).
 * Inbound cases are created **server-side** by the webhook push, so they appear even when no agent has Zendesk open. The ZAF app's background poller is a **fallback** that fills in if push is unavailable; it defers to push so no duplicate ticket is created. Check the browser console for the `[TSANet BG]` log prefix to confirm the fallback is running and credentials are set.
+* If the ZIS integration log (Admin Center → Apps and integrations → Integrations → your integration → Logs) shows `Cannot start flow because the connection named "zendesk" does not exist` (or the same for your TSANet OAuth connection): one or both of the named ZIS connections were never fully created in your integration container. The engine names only **one** missing connection per run, so two different errors minutes apart are usually a single root cause — both connections missing. Re-run the connection steps from the Installation Guide, and note that connection creation is not complete until the verification step; the app's deploy screen pre-flight (v1.0.69+) warns when either connection cannot be confirmed. Events that failed this way are not replayed: open the affected cases in the sidebar or use inbound sync to reconcile.
+
+### New tickets are created, but partner updates stopped arriving (v1.0.65 – v1.0.67, field actions not configured)
+
+If you deployed the ZIS bundle on v1.0.65, v1.0.66, or v1.0.67 **without** the optional field-actions feature configured, partner activity after ticket creation — notes and status changes — silently stopped reaching your tickets, while new tickets kept being created normally. This was a defect in those releases, fixed in v1.0.69.
+
+The complete remedy is to update the app to the [current release](https://github.com/tsanetgit/Zendesk_App/releases/latest) and redeploy the bundle from the deploy screen. Activity from the affected window is not replayed automatically: opening an affected ticket in the sidebar shows live case data, and inbound sync reconciles missed cases. Installs with field actions configured, and v1.0.64 or earlier, were never affected.
 
 ### Public replies are not reaching the partner
 
