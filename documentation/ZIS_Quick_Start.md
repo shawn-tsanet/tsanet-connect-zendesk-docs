@@ -230,7 +230,7 @@ The connection from Step 4 does nothing by itself — the flows that create and 
 > for this API request", verified 2026-07-07). The password-access workaround
 > this note used to give no longer exists: Zendesk removed password access from
 > remaining accounts starting 2026-01-12. As of 2026-10-28 the endpoint accepts a
-> ZIS OAuth token bound to the integration, but Zendesk has not announced it and
+> ZIS OAuth token bound to the integration, but Zendesk's changelog has no entry for it and
 > it has been seen on one instance ([tsanetgit/Zendesk_App#238](https://github.com/tsanetgit/Zendesk_App/pull/238)). The app runs on your own admin session, so
 > there is no credential to create. See
 > [`zis/README.md`](https://github.com/tsanetgit/Zendesk_App/blob/main/zis/README.md)
