@@ -590,6 +590,8 @@ Admin Center → Apps and integrations → APIs → OAuth clients → Add OAuth 
 - Name: `tsanet_zis_client`
 - Copy the Client ID — needed for token refresh job
 
+> **Do not repeat this step.** A hand-created client cannot authenticate a ZIS call: its tokens are refused with `401 Authorization failed due to integration mismatch`. Mint ZIS tokens from the client ZIS creates with the integration (`zis_<integration-name>`, returned as `zendesk_oauth_client`).
+
 ### Step 3 — Install GitHub Actions Workflow
 **Legacy, retired.** The refresh-token job that kept this bearer connection alive is retired along with the connection itself — do not build it for a new installation.
 
@@ -599,7 +601,7 @@ ZIS custom integrations **do not appear in Admin Center UI**. Verify via API:
 curl -s -u "EMAIL/token:API_TOKEN" \
   "https://SUBDOMAIN.zendesk.com/api/services/zis/integrations/tsanet_connect/connections"
 ```
-Note: most ZIS management endpoints reject a standard API token (401/403/404 depending on the endpoint — e.g. `connections/all` returns 403 "API token is not supported"). They require a ZIS OAuth token minted under your ZIS OAuth client. Registry create additionally accepts admin basic auth and admin OAuth bearers (client_credentials); bundle upload rejected all OAuth until late October 2026, and as of 2026-10-28 accepts a ZIS OAuth token from the `zis_<integration-name>` client (seen on one instance, no Zendesk changelog entry). The TSANet Connect app (v1.0.53+) uploads it on the admin's own session.
+Note: most ZIS management endpoints reject a standard API token (401/403/404 depending on the endpoint — e.g. `connections/all` returns 403 "API token is not supported"). They require a ZIS OAuth token minted from the `zis_<integration-name>` client. Registry create additionally accepts admin basic auth and admin OAuth bearers (client_credentials); bundle upload rejected all OAuth until late October 2026, and as of 2026-10-28 accepts a ZIS OAuth token from the `zis_<integration-name>` client (seen on one instance, no Zendesk changelog entry). The TSANet Connect app (v1.0.53+) uploads it on the admin's own session.
 
 ---
 
@@ -743,8 +745,8 @@ Create in Admin Center → Objects and rules → Business rules → Triggers:
 - [ ] Get TSANet API credentials from membership@tsanet.org
 - [ ] Create 5 Zendesk custom fields (Token, Tokens Multi, Status, Partner, Respond By)
 - [ ] Note all Field IDs
-- [ ] Create ZIS OAuth client in Admin Center
 - [ ] Create `tsanet_connect` ZIS integration via API
+- [ ] Use the OAuth client ZIS creates for that integration (`zis_<integration-name>`, returned as `zendesk_oauth_client`); do not create one in Admin Center (hand-created clients are refused with `integration mismatch`)
 - [ ] Build ZAF app (use custom modal — no `prompt()`/`confirm()`)
 - [ ] Test Accept with `engineerEmail` = `tsanet_username`
 - [ ] Verify note add uses Subject+Details two-field pattern
