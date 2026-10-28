@@ -220,22 +220,20 @@ ZIS renews the token automatically when it expires. Continue to Step 5 to deploy
 
 ## Step 5 — Deploy the Flow Bundle
 
-The connection from Step 4 does nothing by itself — the flows that create and update Zendesk tickets live in the **flow bundle** under [`zis/`](zis/). Three calls deploy it (full detail, per-instance substitutions, and gotchas in [`zis/README.md`](zis/README.md)):
+The connection from Step 4 does nothing by itself — the flows that create and update Zendesk tickets live in the **flow bundle** under [`zis/`](zis/). Two steps deploy it (full detail, per-instance substitutions, and gotchas in [`zis/README.md`](zis/README.md)):
 
-1. **Upload** [`zis/tsanet_connect_bundle.json`](zis/tsanet_connect_bundle.json) (after substituting your custom field IDs) to `POST /api/services/zis/registry/tsanet_connect/bundles`
+1. **Deploy the bundle from the TSANet Connect app** (v1.0.53 or later). Its deploy screen fills your custom field IDs into [`zis/tsanet_connect_bundle.json`](zis/tsanet_connect_bundle.json), uploads it, and installs and checks every job spec. Deploy again from the app after any bundle change, because an upload orphans the installed job specs.
 2. **Create the inbound webhook** (`source_system: tsanet`, `event_type: collaboration_event`) and keep the returned ingest URL, Basic credentials, **and `uuid`** (required later for credential rotation — see [ZIS_Rotation_Runbook.md](ZIS_Rotation_Runbook.md); there is no list API, so a lost `uuid` is unrecoverable)
-3. **Install the job spec** — and re-run this after *every* bundle upload, uploads orphan installs
 
-> **Upload the bundle from the TSANet Connect app, not with curl.** Until late
-> October 2026 the bundles endpoint rejected OAuth outright (401 "Authorization
-> failed due to OAuth being disabled for this API request", verified 2026-07-07).
-> The password-access workaround this note used to give no longer exists: Zendesk
-> removed password access from remaining accounts starting 2026-01-12. As of
-> 2026-10-28 the endpoint accepts a ZIS OAuth token minted from the integration's
-> `zis_tsanet_connect` client, but Zendesk has not announced it and it has been
-> seen on one instance. The app's deploy screen (app v1.0.52+) uploads on your own
-> admin session, fills in your field IDs, and installs and checks the job specs.
-> See [`zis/README.md`](https://github.com/tsanetgit/Zendesk_App/blob/main/zis/README.md)
+> **Why the app and not curl.** Until late October 2026 the bundles endpoint
+> rejected OAuth outright (401 "Authorization failed due to OAuth being disabled
+> for this API request", verified 2026-07-07). The password-access workaround
+> this note used to give no longer exists: Zendesk removed password access from
+> remaining accounts starting 2026-01-12. As of 2026-10-28 the endpoint accepts a
+> ZIS OAuth token bound to the integration, but Zendesk has not announced it and
+> it has been seen on one instance. The app runs on your own admin session, so
+> there is no credential to create. See
+> [`zis/README.md`](https://github.com/tsanetgit/Zendesk_App/blob/main/zis/README.md)
 > in the connector repository.
 
 Also create the **OAuth `zendesk` connection** the bundle's Zendesk-side actions require (see the README's prerequisites, steps 2b–2c — it reuses the Step 1 client, registering a ZIS client_credentials connection against your own instance's `/oauth/tokens`).
