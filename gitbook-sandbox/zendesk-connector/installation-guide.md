@@ -208,8 +208,10 @@ ZIS_TOKEN=$(curl -s -X POST \
 **Check the token before you go on.** Zendesk deprecated this endpoint
 (`POST /api/v2/oauth/tokens`) on 26 August 2026; it still worked on 28 October
 2026. Zendesk's suggested replacement, `POST /oauth/tokens` with `client_credentials`,
-does not work for the `zis_` client (it returns `400 unauthorized_client`;
-checked 28 October 2026), so keep using this request. Run `[ -n "$ZIS_TOKEN" ] && [ "$ZIS_TOKEN" != null ] && echo ok || echo "mint failed"`.
+does not work for the `zis_` client: it returns `400 unauthorized_client`, and
+switching the client to confidential only changes the error to `user_id: User is
+invalid` (checked 28 October 2026, on one instance). Do not change the `zis_`
+client's kind; keep using this request. Run `[ -n "$ZIS_TOKEN" ] && [ "$ZIS_TOKEN" != null ] && echo ok || echo "mint failed"`.
 If it prints `mint failed`, stop here: every later ZIS call would return
 `401 Authentication failed`, and that error won't point you back to this step.
 Tracked in
