@@ -13,7 +13,7 @@ The integration is complete at the end of Step 5.
 
 | Requirement | Notes |
 |---|---|
-| Zendesk Admin access | All setup calls authenticate with a short-lived OAuth token from the integration's OAuth client (Step 1). One exception: the bundle upload in Step 5 |
+| Zendesk Admin access | All setup calls authenticate with a short-lived OAuth token from the integration's OAuth client (Step 1). The bundle upload in Step 5 runs in the TSANet Connect app on your admin session |
 | TSANet-issued Entra client | Client ID + secret from TSANet, plus service principal onboarding (contact TSANet with your SP object ID) |
 | ZIS OAuth client | Created in Zendesk Admin Center (see Step 2) |
 
@@ -220,20 +220,21 @@ ZIS renews the token automatically when it expires. Continue to Step 5 to deploy
 
 ## Step 5 — Deploy the Flow Bundle
 
-The connection from Step 4 does nothing by itself — the flows that create and update Zendesk tickets live in the **flow bundle** under [`zis/`](zis/). Three calls deploy it (full detail, per-instance substitutions, and gotchas in [`zis/README.md`](zis/README.md)):
+The connection from Step 4 does nothing by itself — the flows that create and update Zendesk tickets live in the **flow bundle** under [`zis/`](zis/). Two steps deploy it (full detail, per-instance substitutions, and gotchas in [`zis/README.md`](zis/README.md)):
 
-1. **Upload** [`zis/tsanet_connect_bundle.json`](zis/tsanet_connect_bundle.json) (after substituting your custom field IDs) to `POST /api/services/zis/registry/tsanet_connect/bundles`
+1. **Deploy the bundle from the TSANet Connect app** (v1.0.53 or later). Install the app and run **Detect field IDs → Apply** on its nav-bar screen first, as in Steps 3 and 3b of the [installation guide](../gitbook-sandbox/zendesk-connector/installation-guide.md); the Deploy button stays disabled until the app's settings are complete. The deploy screen then fills your custom field IDs into [`zis/tsanet_connect_bundle.json`](zis/tsanet_connect_bundle.json), uploads it, and installs and checks every job spec. Deploy again from the app after any bundle change, because an upload orphans the installed job specs.
 2. **Create the inbound webhook** (`source_system: tsanet`, `event_type: collaboration_event`) and keep the returned ingest URL, Basic credentials, **and `uuid`** (required later for credential rotation — see [ZIS_Rotation_Runbook.md](ZIS_Rotation_Runbook.md); there is no list API, so a lost `uuid` is unrecoverable)
-3. **Install the job spec** — and re-run this after *every* bundle upload, uploads orphan installs
 
-> **Bundle upload is the one basic-auth exception.** The bundles endpoint currently
-> rejects OAuth outright (401 "Authorization failed due to OAuth being disabled for
-> this API request", verified 2026-07-07), so this single call cannot use
-> `$SETUP_TOKEN`. Temporarily enable password access (**Admin Center → Apps and
-> integrations → APIs → Zendesk API → Settings → Password access**), upload with
-> `-u "YOUR_EMAIL:YOUR_PASSWORD"`, then disable password access again. Re-test the
-> endpoint with OAuth periodically — Zendesk is expected to enable it before API
-> tokens are fully retired.
+> **Why the app and not curl.** Until late October 2026 the bundles endpoint
+> rejected OAuth outright (401 "Authorization failed due to OAuth being disabled
+> for this API request", verified 2026-07-07). The password-access workaround
+> this note used to give no longer exists: Zendesk removed password access from
+> remaining accounts starting 2026-01-12. As of 2026-10-28 the endpoint accepts a
+> ZIS OAuth token bound to the integration, but Zendesk's changelog has no entry for it and
+> it has been seen on one instance ([tsanetgit/Zendesk_App#238](https://github.com/tsanetgit/Zendesk_App/pull/238)). The app runs on your own admin session, so
+> there is no credential to create. See
+> [`zis/README.md`](https://github.com/tsanetgit/Zendesk_App/blob/main/zis/README.md)
+> in the connector repository.
 
 Also create the **OAuth `zendesk` connection** the bundle's Zendesk-side actions require (see the README's prerequisites, steps 2b–2c — it reuses the Step 1 client, registering a ZIS client_credentials connection against your own instance's `/oauth/tokens`).
 

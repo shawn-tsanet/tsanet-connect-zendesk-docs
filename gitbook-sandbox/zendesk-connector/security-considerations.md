@@ -146,10 +146,9 @@ validated end to end on Beta.
   minted from the integration's confidential OAuth client, and the runtime
   connection mints its own. (Zendesk is retiring API tokens for the Ticketing
   API — all tokens stop working on April 30, 2027 — so this is a compliance
-  point as well as a hardening one.) The one-time flow-bundle upload is the only
-  call that rejects OAuth on Zendesk's side; it runs inside the TSANet Connect
-  app on the installing admin's own session, so it needs no API token, no
-  password access, and no long-lived credential of any kind.
+  point as well as a hardening one.) The one-time flow-bundle upload runs inside
+  the TSANet Connect app on the installing admin's own session, so it needs no
+  API token, no password access, and no long-lived credential of any kind.
 
 ## Data Retention and the PII Lifecycle
 
@@ -370,9 +369,10 @@ on October 27, 2026, and all existing tokens stop working on April 30, 2027.
 The integration is ahead of this: no API token is used anywhere. The `zendesk`
 ZIS connection uses OAuth client credentials (no stored token), and setup
 commands authenticate with short-lived OAuth setup tokens minted from the
-integration's confidential OAuth client. The flow-bundle upload is the one call
-Zendesk refuses OAuth on, and it is handled without a token at all: the TSANet
-Connect app performs it on the installing administrator's own session. Because
+integration's confidential OAuth client. The flow-bundle upload, which Zendesk
+refused OAuth on until late October 2026, is handled without a token at all:
+the TSANet Connect app performs it on the installing administrator's own
+session. Because
 the session is the credential, it lasts exactly as long as the admin is signed
 in, there is nothing to store, and nothing to rotate or revoke afterwards.
 
