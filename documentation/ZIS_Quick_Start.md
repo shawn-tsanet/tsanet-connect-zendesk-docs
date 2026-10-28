@@ -13,7 +13,7 @@ The integration is complete at the end of Step 5.
 
 | Requirement | Notes |
 |---|---|
-| Zendesk Admin access | All setup calls authenticate with a short-lived OAuth token from the integration's OAuth client (Step 1). One exception: the bundle upload in Step 5 |
+| Zendesk Admin access | All setup calls authenticate with a short-lived OAuth token from the integration's OAuth client (Step 1). The bundle upload in Step 5 runs in the TSANet Connect app on your admin session |
 | TSANet-issued Entra client | Client ID + secret from TSANet, plus service principal onboarding (contact TSANet with your SP object ID) |
 | ZIS OAuth client | Created in Zendesk Admin Center (see Step 2) |
 
@@ -226,14 +226,17 @@ The connection from Step 4 does nothing by itself — the flows that create and 
 2. **Create the inbound webhook** (`source_system: tsanet`, `event_type: collaboration_event`) and keep the returned ingest URL, Basic credentials, **and `uuid`** (required later for credential rotation — see [ZIS_Rotation_Runbook.md](ZIS_Rotation_Runbook.md); there is no list API, so a lost `uuid` is unrecoverable)
 3. **Install the job spec** — and re-run this after *every* bundle upload, uploads orphan installs
 
-> **Bundle upload is the one basic-auth exception.** The bundles endpoint currently
-> rejects OAuth outright (401 "Authorization failed due to OAuth being disabled for
-> this API request", verified 2026-07-07), so this single call cannot use
-> `$SETUP_TOKEN`. Temporarily enable password access (**Admin Center → Apps and
-> integrations → APIs → Zendesk API → Settings → Password access**), upload with
-> `-u "YOUR_EMAIL:YOUR_PASSWORD"`, then disable password access again. Re-test the
-> endpoint with OAuth periodically — Zendesk is expected to enable it before API
-> tokens are fully retired.
+> **Upload the bundle from the TSANet Connect app, not with curl.** Until late
+> October 2026 the bundles endpoint rejected OAuth outright (401 "Authorization
+> failed due to OAuth being disabled for this API request", verified 2026-07-07).
+> The password-access workaround this note used to give no longer exists: Zendesk
+> removed password access from remaining accounts starting 2026-01-12. As of
+> 2026-10-28 the endpoint accepts a ZIS OAuth token minted from the integration's
+> `zis_tsanet_connect` client, but Zendesk has not announced it and it has been
+> seen on one instance. The app's deploy screen (app v1.0.52+) uploads on your own
+> admin session, fills in your field IDs, and installs and checks the job specs.
+> See [`zis/README.md`](https://github.com/tsanetgit/Zendesk_App/blob/main/zis/README.md)
+> in the connector repository.
 
 Also create the **OAuth `zendesk` connection** the bundle's Zendesk-side actions require (see the README's prerequisites, steps 2b–2c — it reuses the Step 1 client, registering a ZIS client_credentials connection against your own instance's `/oauth/tokens`).
 

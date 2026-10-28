@@ -599,7 +599,7 @@ ZIS custom integrations **do not appear in Admin Center UI**. Verify via API:
 curl -s -u "EMAIL/token:API_TOKEN" \
   "https://SUBDOMAIN.zendesk.com/api/services/zis/integrations/tsanet_connect/connections"
 ```
-Note: most ZIS management endpoints reject a standard API token (401/403/404 depending on the endpoint — e.g. `connections/all` returns 403 "API token is not supported"). They require a ZIS OAuth token minted under your ZIS OAuth client. Registry create additionally accepts admin basic auth and admin OAuth bearers (client_credentials); bundle upload accepts ONLY basic auth — it rejects all OAuth. This is by design — it's not an error.
+Note: most ZIS management endpoints reject a standard API token (401/403/404 depending on the endpoint — e.g. `connections/all` returns 403 "API token is not supported"). They require a ZIS OAuth token minted under your ZIS OAuth client. Registry create additionally accepts admin basic auth and admin OAuth bearers (client_credentials); bundle upload rejected all OAuth until late October 2026, and as of 2026-10-28 accepts a ZIS OAuth token from the `zis_<integration-name>` client (seen on one instance, unannounced). The TSANet Connect app (v1.0.52+) uploads it on the admin's own session.
 
 ---
 
@@ -652,7 +652,7 @@ Key facts (full recipe in `zis/README.md` Prerequisites 2a–2c):
 - **Minimal scope is `read tickets:write`.** `tickets:read` alone breaks `SearchTicket` — `/api/v2/search.json` returns 403 under it, and there is no `search:read` scope.
 - Tokens from clients created on or after 2026-04-30 **expire in 30 minutes**, so a static `bearer_token` connection is not viable; only the auto-renewing `oauth` connection type works.
 - **Migration on an existing install:** connection names are unique across types — delete the old `basic_auth` connection named `zendesk`, then create the `oauth` one under the same name. Zero bundle changes. Deleting a ZIS OAuth client registration cascade-deletes its connections.
-- **Setup bootstrap is tokenless too** (validated 2026-07-07): the same confidential client's client_credentials bearer is accepted on ZIS registry create and on `POST /api/v2/oauth/tokens` (minting the ZIS management token). **One exception: bundle upload** — `POST /registry/{integration}/bundles` rejects ALL OAuth (401 "Authorization failed due to OAuth being disabled for this API request"); use email:password basic auth with the password-access toggle enabled temporarily.
+- **Setup bootstrap is tokenless too** (validated 2026-07-07): the same confidential client's client_credentials bearer is accepted on ZIS registry create and on `POST /api/v2/oauth/tokens` (minting the ZIS management token). **Bundle upload was the exception until late October 2026** — `POST /registry/{integration}/bundles` rejected ALL OAuth (401 "Authorization failed due to OAuth being disabled for this API request"). As of 2026-10-28 it accepts a ZIS OAuth token from the `zis_<integration-name>` client (seen on one instance, unannounced). The password-access fallback is gone: Zendesk removed password access starting 2026-01-12. Deploy from the TSANet Connect app (v1.0.52+), which runs on the admin's own session.
 
 ---
 
