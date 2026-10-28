@@ -146,7 +146,7 @@ ZIS_TOKEN=$(curl -s -X POST \
   -d '{"token":{"client_id":ZIS_CLIENT_NUMERIC_ID,"scopes":["read","write"]}}' | jq -r '.token.full_token')
 ```
 
-> **Check the token before you go on.** Zendesk deprecated this endpoint (`POST /api/v2/oauth/tokens`) on 2026-08-26; it still worked on 2026-10-28. If `echo $ZIS_TOKEN` prints `null`, the mint failed, and every later ZIS call will return `401 Authentication failed`, which points at the token rather than this step. Tracked in [tsanetgit/Zendesk_App#239](https://github.com/tsanetgit/Zendesk_App/issues/239).
+> **Check the token before you go on.** Zendesk deprecated this endpoint (`POST /api/v2/oauth/tokens`) on 2026-08-26; it still worked on 2026-10-28. Run `[ -n "$ZIS_TOKEN" ] && [ "$ZIS_TOKEN" != null ] && echo ok || echo "mint failed"`. If it prints `mint failed`, stop here: every later ZIS call would return `401 Authentication failed`, and that error won't point you back to this step. Tracked in [tsanetgit/Zendesk_App#239](https://github.com/tsanetgit/Zendesk_App/issues/239).
 
 Requires the TSANet-issued Entra client (see Prerequisites). ZIS stores the credential and handles all token minting and renewal itself.
 
