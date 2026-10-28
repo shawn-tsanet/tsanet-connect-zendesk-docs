@@ -590,6 +590,8 @@ Admin Center → Apps and integrations → APIs → OAuth clients → Add OAuth 
 - Name: `tsanet_zis_client`
 - Copy the Client ID — needed for token refresh job
 
+> **Do not repeat this step.** A hand-created client cannot authenticate a ZIS call: its tokens are refused with `401 Authorization failed due to integration mismatch`. Mint ZIS tokens from the client ZIS creates with the integration (`zis_<integration-name>`, returned as `zendesk_oauth_client`).
+
 ### Step 3 — Install GitHub Actions Workflow
 **Legacy, retired.** The refresh-token job that kept this bearer connection alive is retired along with the connection itself — do not build it for a new installation.
 
@@ -743,8 +745,8 @@ Create in Admin Center → Objects and rules → Business rules → Triggers:
 - [ ] Get TSANet API credentials from membership@tsanet.org
 - [ ] Create 5 Zendesk custom fields (Token, Tokens Multi, Status, Partner, Respond By)
 - [ ] Note all Field IDs
-- [ ] Create ZIS OAuth client in Admin Center
 - [ ] Create `tsanet_connect` ZIS integration via API
+- [ ] Use the OAuth client ZIS creates for that integration (`zis_<integration-name>`, returned as `zendesk_oauth_client`); do not create one in Admin Center (hand-created clients are refused with `integration mismatch`)
 - [ ] Build ZAF app (use custom modal — no `prompt()`/`confirm()`)
 - [ ] Test Accept with `engineerEmail` = `tsanet_username`
 - [ ] Verify note add uses Subject+Details two-field pattern

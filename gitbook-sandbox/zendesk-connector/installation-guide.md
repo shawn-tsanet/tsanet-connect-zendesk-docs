@@ -850,7 +850,7 @@ a Zendesk API token.
 | Context | Method | Where it is stored |
 | --- | --- | --- |
 | Setup commands (Step 1b, and the macro call) | Short-lived OAuth setup token (`$SETUP_TOKEN`, client_credentials) | Minted per use from the integration's OAuth client, nothing stored |
-| ZIS management calls (Steps 1c, 2, 4a, 4d) | ZIS OAuth bearer (`$ZIS_TOKEN`) | Used per session, nothing stored |
+| ZIS management calls (Steps 2, 4a, 4d, 4e) | ZIS OAuth bearer (`$ZIS_TOKEN`) | Used per session, nothing stored |
 | Bundle deploy (Step 4c) | Your own signed-in admin session, via the TSANet Connect app | Nothing stored, the app inherits the session. The app also fills in your instance's values and installs and checks the job specs |
 | ZIS to TSANet API (runtime) | OAuth client credentials (Microsoft Entra) | ZIS connection, minted and renewed automatically |
 | ZIS to Zendesk API (runtime) | OAuth client credentials against your own instance (`zendesk` connection, scope `read tickets:write`) | ZIS connection, created in Step 4a, short-lived tokens minted and renewed automatically |
