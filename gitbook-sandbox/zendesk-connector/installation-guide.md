@@ -578,7 +578,8 @@ that ask you to.
 **Why the app and not a curl command.** Until late October 2026 the bundles
 endpoint rejected OAuth outright (401 "Authorization failed due to OAuth being
 disabled for this API request"). As of 28 October 2026 it accepts `$ZIS_TOKEN`,
-but Zendesk has not announced that and it has been seen on one instance. The app
+but Zendesk has not announced that and it has been seen on one instance
+([tsanetgit/Zendesk_App#238](https://github.com/tsanetgit/Zendesk_App/pull/238)). The app
 is still how you deploy: a curl upload sends the bundle's placeholders as they
 are and leaves the job specs uninstalled, while the app fills in your instance's
 values, installs every job spec and checks the result. Zendesk is withdrawing
