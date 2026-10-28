@@ -13,7 +13,7 @@ The integration is complete at the end of Step 5.
 
 | Requirement | Notes |
 |---|---|
-| Zendesk Admin access | Setup calls authenticate with a short-lived OAuth setup token from the integration's OAuth client (Step 1), or with a ZIS token minted using it (Step 4). The bundle upload in Step 5 runs in the TSANet Connect app on your admin session |
+| Zendesk Admin access | Setup calls authenticate with a short-lived OAuth setup token from the integration's OAuth client (Step 1), or with a ZIS token minted from the `zis_tsanet_connect` client (Step 4). The bundle upload in Step 5 runs in the TSANet Connect app on your admin session |
 | TSANet-issued Entra client | Client ID + secret from TSANet, plus service principal onboarding (contact TSANet with your SP object ID) |
 | ZIS OAuth client | Created for you by Step 3, as `zis_tsanet_connect`. Do not create one in Admin Center (see Step 2) |
 

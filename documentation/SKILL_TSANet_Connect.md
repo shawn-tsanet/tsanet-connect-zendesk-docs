@@ -601,7 +601,7 @@ ZIS custom integrations **do not appear in Admin Center UI**. Verify via API:
 curl -s -u "EMAIL/token:API_TOKEN" \
   "https://SUBDOMAIN.zendesk.com/api/services/zis/integrations/tsanet_connect/connections"
 ```
-Note: most ZIS management endpoints reject a standard API token (401/403/404 depending on the endpoint — e.g. `connections/all` returns 403 "API token is not supported"). They require a ZIS OAuth token minted under your ZIS OAuth client. Registry create additionally accepts admin basic auth and admin OAuth bearers (client_credentials); bundle upload rejected all OAuth until late October 2026, and as of 2026-10-28 accepts a ZIS OAuth token from the `zis_<integration-name>` client (seen on one instance, no Zendesk changelog entry). The TSANet Connect app (v1.0.53+) uploads it on the admin's own session.
+Note: most ZIS management endpoints reject a standard API token (401/403/404 depending on the endpoint — e.g. `connections/all` returns 403 "API token is not supported"). They require a ZIS OAuth token minted from the `zis_<integration-name>` client. Registry create additionally accepts admin basic auth and admin OAuth bearers (client_credentials); bundle upload rejected all OAuth until late October 2026, and as of 2026-10-28 accepts a ZIS OAuth token from the `zis_<integration-name>` client (seen on one instance, no Zendesk changelog entry). The TSANet Connect app (v1.0.53+) uploads it on the admin's own session.
 
 ---
 
